@@ -1,4 +1,4 @@
-# Copyright 2021-2023 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2021-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -10,7 +10,8 @@ name: Coverage
 # Run once a day
 on:
   schedule:
-    - cron:  '49 0 * * *'
+    - cron:  '15 02 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,6 +26,9 @@ jobs:
       matrix:
         branches: [
           {
+            branch: openssl-3.4,
+            extra_config: no-afalgeng enable-fips enable-tfo
+          }, {
             branch: openssl-3.3,
             extra_config: no-afalgeng enable-fips enable-tfo
           }, {
@@ -72,17 +76,16 @@ jobs:
         cat /proc/cpuinfo
         ./util/opensslwrap.sh version -c
     - name: make test
-      run: make test HARNESS_JOBS=${HARNESS_JOBS:-4} TESTS='-test_external_krb5'
+      run: make test TESTS='-test_external_krb5'
     - name: generate coverage info
       run: lcov -d . -c
              --exclude "${PWD}/test/*"
-             --exclude "${PWD}/test/helpers/*"
-             --exclude "${PWD}/test/testutil/*"
              --exclude "${PWD}/fuzz/*"
              --exclude "/usr/include/*"
+             --ignore-errors mismatch
               -o ./lcov.info
     - name: Coveralls upload
-      uses: coverallsapp/github-action@v2.2.3
+      uses: coverallsapp/github-action@v2.3.2
       with:
         github-token: ${{ secrets.github_token }}
         git-branch: ${{ matrix.branches.branch }}

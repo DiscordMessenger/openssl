@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -38,7 +38,8 @@ static TSAN_QUALIFIER int free_count;
 #  define LOAD(x)      tsan_load(&x)
 # endif /* TSAN_REQUIRES_LOCKING */
 
-static char *md_failstring;
+static char md_failbuf[CRYPTO_MEM_CHECK_MAX_FS + 1];
+static char *md_failstring = NULL;
 static long md_count;
 static int md_fail_percent = 0;
 static int md_tracefd = -1;
@@ -164,9 +165,17 @@ static int shouldfail(void)
 void ossl_malloc_setup_failures(void)
 {
     const char *cp = getenv("OPENSSL_MALLOC_FAILURES");
+    size_t cplen = 0;
 
-    if (cp != NULL && (md_failstring = strdup(cp)) != NULL)
-        parseit();
+    if (cp != NULL) {
+        /* if the value is too long we'll just ignore it */
+        cplen = strlen(cp);
+        if (cplen <= CRYPTO_MEM_CHECK_MAX_FS) {
+            strncpy(md_failbuf, cp, CRYPTO_MEM_CHECK_MAX_FS);
+            md_failstring = md_failbuf;
+            parseit();
+        }
+    }
     if ((cp = getenv("OPENSSL_MALLOC_FD")) != NULL)
         md_tracefd = atoi(cp);
     if ((cp = getenv("OPENSSL_MALLOC_SEED")) != NULL)
@@ -238,15 +247,19 @@ void *CRYPTO_aligned_alloc(size_t num, size_t alignment, void **freeptr,
     return ret;
 #endif
 
-#if defined (_BSD_SOURCE) || (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L)
-    if (posix_memalign(&ret, alignment, num))
-        return NULL;
-    *freeptr = ret;
-    return ret;
+    /* Allow non-malloc() allocations as long as no malloc_impl is provided. */
+    if (malloc_impl == CRYPTO_malloc) {
+#if defined(_BSD_SOURCE) || (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L)
+        if (posix_memalign(&ret, alignment, num))
+            return NULL;
+        *freeptr = ret;
+        return ret;
 #elif defined(_ISOC11_SOURCE)
-    ret = *freeptr =  aligned_alloc(alignment, num);
-    return ret;
-#else
+        ret = *freeptr = aligned_alloc(alignment, num);
+        return ret;
+#endif
+    }
+
     /* we have to do this the hard way */
 
     /*
@@ -261,7 +274,7 @@ void *CRYPTO_aligned_alloc(size_t num, size_t alignment, void **freeptr,
      * Step 1: Allocate an amount of memory that is <alignment>
      * bytes bigger than requested
      */
-    *freeptr = malloc(num + alignment);
+    *freeptr = CRYPTO_malloc(num + alignment, file, line);
     if (*freeptr == NULL)
         return NULL;
 
@@ -282,7 +295,6 @@ void *CRYPTO_aligned_alloc(size_t num, size_t alignment, void **freeptr,
      */
     ret = (void *)((uintptr_t)ret & (uintptr_t)(~(alignment - 1)));
     return ret;
-#endif
 }
 
 void *CRYPTO_realloc(void *str, size_t num, const char *file, int line)

@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -43,6 +43,11 @@ int X509_verify(X509 *a, EVP_PKEY *r)
 int X509_REQ_verify_ex(X509_REQ *a, EVP_PKEY *r, OSSL_LIB_CTX *libctx,
                        const char *propq)
 {
+    if (X509_REQ_get_version(a) != X509_REQ_VERSION_1) {
+        ERR_raise(ERR_LIB_X509, X509_R_UNSUPPORTED_VERSION);
+        return -1;
+    }
+
     return ASN1_item_verify_ex(ASN1_ITEM_rptr(X509_REQ_INFO), &a->sig_alg,
                                a->signature, &a->req_info, a->distinguishing_id,
                                r, libctx, propq);
@@ -111,11 +116,13 @@ static ASN1_VALUE *simple_get_asn1(const char *url, BIO *bio, BIO *rbio,
                                    int timeout, const ASN1_ITEM *it)
 {
 #ifndef OPENSSL_NO_HTTP
+    size_t max_resp_len = (it == ASN1_ITEM_rptr(X509_CRL)) ?
+        OSSL_HTTP_DEFAULT_MAX_CRL_LEN : OSSL_HTTP_DEFAULT_MAX_RESP_LEN;
     BIO *mem = OSSL_HTTP_get(url, NULL /* proxy */, NULL /* no_proxy */,
                              bio, rbio, NULL /* cb */, NULL /* arg */,
                              1024 /* buf_size */, NULL /* headers */,
                              NULL /* expected_ct */, 1 /* expect_asn1 */,
-                             OSSL_HTTP_DEFAULT_MAX_RESP_LEN, timeout);
+                             max_resp_len, timeout);
     ASN1_VALUE *res = ASN1_item_d2i_bio(it, mem, NULL);
 
     BIO_free(mem);
@@ -197,7 +204,7 @@ int X509_ACERT_sign_ctx(X509_ACERT *x, EVP_MD_CTX *ctx)
 {
     return ASN1_item_sign_ctx(ASN1_ITEM_rptr(X509_ACERT_INFO),
                               &x->sig_alg, &x->acinfo->signature, &x->signature,
-                              &x->acinfo, ctx);
+                              x->acinfo, ctx);
 }
 
 int NETSCAPE_SPKI_sign(NETSCAPE_SPKI *x, EVP_PKEY *pkey, const EVP_MD *md)

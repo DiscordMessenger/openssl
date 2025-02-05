@@ -144,7 +144,7 @@ Then a hash table of B<I<TYPE>> objects can be created using this:
 B<lh_I<TYPE>_free>() frees the B<LHASH_OF>(B<I<TYPE>>) structure
 I<table>. Allocated hash table entries will not be freed; consider
 using B<lh_I<TYPE>_doall>() to deallocate any remaining entries in the
-hash table (see below).
+hash table (see below). If the argument is NULL, nothing is done.
 
 B<lh_I<TYPE>_flush>() empties the B<LHASH_OF>(B<I<TYPE>>) structure I<table>. New
 entries can be added to the flushed table.  Allocated hash table entries
@@ -323,6 +323,9 @@ type checking.
 
 In OpenSSL 3.1, B<DEFINE_LHASH_OF_EX>() was introduced and B<DEFINE_LHASH_OF>()
 was deprecated.
+
+OPENSSL_LH_doall_arg_thunk(), OPENSSL_LH_set_thunks() were added in
+OpenSSL 3.3.
 
 =head1 COPYRIGHT
 

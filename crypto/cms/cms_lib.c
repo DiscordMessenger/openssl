@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2008-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -15,8 +15,10 @@
 #include <openssl/asn1.h>
 #include <openssl/cms.h>
 #include "internal/sizes.h"
+#include "internal/cryptlib.h"
 #include "crypto/x509.h"
 #include "cms_local.h"
+#include "internal/cms.h"
 
 static STACK_OF(CMS_CertificateChoices)
 **cms_get0_certificate_choices(CMS_ContentInfo *cms);
@@ -620,52 +622,92 @@ int CMS_add1_crl(CMS_ContentInfo *cms, X509_CRL *crl)
 STACK_OF(X509) *CMS_get1_certs(CMS_ContentInfo *cms)
 {
     STACK_OF(X509) *certs = NULL;
+
+    if (!ossl_cms_get1_certs_ex(cms, &certs))
+        return NULL;
+    if (sk_X509_num(certs) == 0) {
+        sk_X509_free(certs);
+        return NULL;
+    }
+    return certs;
+}
+
+int ossl_cms_get1_certs_ex(CMS_ContentInfo *cms, STACK_OF(X509) **certs)
+{
     CMS_CertificateChoices *cch;
     STACK_OF(CMS_CertificateChoices) **pcerts;
-    int i;
+    int i, n;
 
+    if (certs == NULL)
+        return 0;
+    *certs = NULL;
     pcerts = cms_get0_certificate_choices(cms);
     if (pcerts == NULL)
-        return NULL;
-    for (i = 0; i < sk_CMS_CertificateChoices_num(*pcerts); i++) {
+        return 0;
+
+    /* make sure to return NULL *certs only on error */
+    n = sk_CMS_CertificateChoices_num(*pcerts);
+    if ((*certs = sk_X509_new_reserve(NULL, n)) == NULL)
+        return 0;
+
+    for (i = 0; i < n; i++) {
         cch = sk_CMS_CertificateChoices_value(*pcerts, i);
         if (cch->type == 0) {
-            if (!ossl_x509_add_cert_new(&certs, cch->d.certificate,
-                                        X509_ADD_FLAG_UP_REF)) {
-                OSSL_STACK_OF_X509_free(certs);
-                return NULL;
+            if (!X509_add_cert(*certs, cch->d.certificate,
+                               X509_ADD_FLAG_UP_REF)) {
+                OSSL_STACK_OF_X509_free(*certs);
+                *certs = NULL;
+                return 0;
             }
         }
     }
-    return certs;
-
+    return 1;
 }
 
 STACK_OF(X509_CRL) *CMS_get1_crls(CMS_ContentInfo *cms)
 {
     STACK_OF(X509_CRL) *crls = NULL;
+
+    if (!ossl_cms_get1_crls_ex(cms, &crls))
+        return NULL;
+    if (sk_X509_CRL_num(crls) == 0) {
+        sk_X509_CRL_free(crls);
+        return NULL;
+    }
+    return crls;
+}
+
+int ossl_cms_get1_crls_ex(CMS_ContentInfo *cms, STACK_OF(X509_CRL) **crls)
+{
     STACK_OF(CMS_RevocationInfoChoice) **pcrls;
     CMS_RevocationInfoChoice *rch;
-    int i;
+    int i, n;
 
+    if (crls == NULL)
+        return 0;
+    *crls = NULL;
     pcrls = cms_get0_revocation_choices(cms);
     if (pcrls == NULL)
-        return NULL;
-    for (i = 0; i < sk_CMS_RevocationInfoChoice_num(*pcrls); i++) {
+        return 0;
+
+    /* make sure to return NULL *crls only on error */
+    n = sk_CMS_RevocationInfoChoice_num(*pcrls);
+    if ((*crls = sk_X509_CRL_new_reserve(NULL, n)) == NULL)
+        return 0;
+
+    for (i = 0; i < n; i++) {
         rch = sk_CMS_RevocationInfoChoice_value(*pcrls, i);
         if (rch->type == 0) {
-            if (crls == NULL) {
-                if ((crls = sk_X509_CRL_new_null()) == NULL)
-                    return NULL;
-            }
-            if (!sk_X509_CRL_push(crls, rch->d.crl)
-                    || !X509_CRL_up_ref(rch->d.crl)) {
-                sk_X509_CRL_pop_free(crls, X509_CRL_free);
-                return NULL;
+            if (!X509_CRL_up_ref(rch->d.crl)
+                || !ossl_assert(sk_X509_CRL_push(*crls, rch->d.crl))) {
+                /* push cannot fail on reserved stack */
+                sk_X509_CRL_pop_free(*crls, X509_CRL_free);
+                *crls = NULL;
+                return 0;
             }
         }
     }
-    return crls;
+    return 1;
 }
 
 int ossl_cms_ias_cert_cmp(CMS_IssuerAndSerialNumber *ias, X509 *cert)
@@ -727,4 +769,41 @@ int ossl_cms_set1_keyid(ASN1_OCTET_STRING **pkeyid, X509 *cert)
     ASN1_OCTET_STRING_free(*pkeyid);
     *pkeyid = keyid;
     return 1;
+}
+
+CMS_EnvelopedData *ossl_cms_sign_encrypt(BIO *data, X509 *sign_cert, STACK_OF(X509) *certs,
+                                         EVP_PKEY *sign_key, unsigned int sign_flags,
+                                         STACK_OF(X509) *enc_recip, const EVP_CIPHER *cipher,
+                                         unsigned int enc_flags, OSSL_LIB_CTX *libctx,
+                                         const char *propq)
+{
+    CMS_EnvelopedData *evd = NULL;
+    BIO *privbio = NULL, *signbio = NULL;
+    CMS_ContentInfo *signcms = NULL, *evpcms = NULL;
+
+    if (data == NULL || sign_key == NULL || sign_cert == NULL || enc_recip == NULL) {
+        ERR_raise(ERR_LIB_CMS, ERR_R_PASSED_NULL_PARAMETER);
+        return NULL;
+    }
+    signcms = CMS_sign_ex(sign_cert, sign_key, certs, data, sign_flags, libctx, propq);
+    if (signcms == NULL)
+        goto err;
+
+    signbio = BIO_new(BIO_s_mem());
+    if (signbio == NULL
+        || ASN1_item_i2d_bio(ASN1_ITEM_rptr(CMS_SignedData), signbio, signcms->d.signedData) <= 0)
+        goto err;
+
+    evpcms = CMS_encrypt_ex(enc_recip, signbio, cipher, enc_flags, libctx, propq);
+    if (evpcms == NULL)
+        goto err;
+    evd = CMS_EnvelopedData_dup(evpcms->d.envelopedData);
+
+ err:
+    BIO_free(privbio);
+    BIO_free(signbio);
+    CMS_ContentInfo_free(signcms);
+    CMS_ContentInfo_free(evpcms);
+
+    return evd;
 }

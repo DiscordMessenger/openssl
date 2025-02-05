@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -115,7 +115,7 @@ int ossl_cipher_var_keylen_set_ctx_params(void *vctx, const OSSL_PARAM params[])
     PROV_CIPHER_CTX *ctx = (PROV_CIPHER_CTX *)vctx;
     const OSSL_PARAM *p;
 
-    if (params == NULL)
+    if (ossl_param_is_empty(params))
         return 1;
 
     if (!ossl_cipher_generic_set_ctx_params(vctx, params))
@@ -152,6 +152,7 @@ static const OSSL_PARAM cipher_aead_known_gettable_ctx_params[] = {
     OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_AEAD_TAG, NULL, 0),
     OSSL_PARAM_size_t(OSSL_CIPHER_PARAM_AEAD_TLS1_AAD_PAD, NULL),
     OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_AEAD_TLS1_GET_IV_GEN, NULL, 0),
+    OSSL_PARAM_uint(OSSL_CIPHER_PARAM_AEAD_IV_GENERATED, NULL),
     OSSL_PARAM_END
 };
 const OSSL_PARAM *ossl_cipher_aead_gettable_ctx_params(
@@ -624,7 +625,7 @@ int ossl_cipher_generic_set_ctx_params(void *vctx, const OSSL_PARAM params[])
     PROV_CIPHER_CTX *ctx = (PROV_CIPHER_CTX *)vctx;
     const OSSL_PARAM *p;
 
-    if (params == NULL)
+    if (ossl_param_is_empty(params))
         return 1;
 
     p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_PADDING);

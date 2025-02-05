@@ -289,7 +289,7 @@ static int eckem_set_ctx_params(void *vctx, const OSSL_PARAM params[])
     const OSSL_PARAM *p;
     int mode;
 
-    if (params == NULL)
+    if (ossl_param_is_empty(params))
         return 1;
 
     p = OSSL_PARAM_locate_const(params, OSSL_KEM_PARAM_IKME);
@@ -405,10 +405,10 @@ int ossl_ec_dhkem_derive_private(EC_KEY *ec, BIGNUM *priv,
         return 0;
 
     /* ikmlen should have a length of at least Nsk */
-    if (ikmlen < info->Nsecret) {
+    if (ikmlen < info->Nsk) {
         ERR_raise_data(ERR_LIB_PROV, PROV_R_INVALID_INPUT_LENGTH,
                        "ikm length is :%zu, should be at least %zu",
-                       ikmlen, info->Nsecret);
+                       ikmlen, info->Nsk);
         goto err;
     }
 

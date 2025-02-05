@@ -1071,8 +1071,8 @@ static int kdf_argon2_derive(void *vctx, unsigned char *out, size_t outlen,
 # else
         if (ctx->threads > ossl_get_avail_threads(ctx->libctx)) {
             ERR_raise_data(ERR_LIB_PROV, PROV_R_INVALID_THREAD_POOL_SIZE,
-                           "requested %u threads, available: 1",
-                           ossl_get_avail_threads(ctx->libctx));
+                           "requested %u threads, available: %u",
+                           ctx->threads, ossl_get_avail_threads(ctx->libctx));
             return 0;
         }
 # endif
@@ -1394,7 +1394,7 @@ static int kdf_argon2_set_ctx_params(void *vctx, const OSSL_PARAM params[])
     KDF_ARGON2 *ctx;
     uint32_t u32_value;
 
-    if (params == NULL)
+    if (ossl_param_is_empty(params))
         return 1;
 
     ctx = (KDF_ARGON2 *) vctx;

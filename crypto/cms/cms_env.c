@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2008-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -1301,7 +1301,7 @@ int ossl_cms_AuthEnvelopedData_final(CMS_ContentInfo *cms, BIO *cmsbio)
 
     BIO_get_cipher_ctx(cmsbio, &ctx);
 
-    /* 
+    /*
      * The tag is set only for encryption. There is nothing to do for
      * decryption.
      */

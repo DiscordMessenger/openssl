@@ -194,16 +194,6 @@ int ecparam_main(int argc, char **argv)
 
     private = genkey ? 1 : 0;
 
-    out = bio_open_owner(outfile, outformat, private);
-    if (out == NULL)
-        goto end;
-
-    if (list_curves) {
-        if (list_builtin_curves(out))
-            ret = 0;
-        goto end;
-    }
-
     if (curve_name != NULL) {
         OSSL_PARAM params[4];
         OSSL_PARAM *p = params;
@@ -276,8 +266,18 @@ int ecparam_main(int argc, char **argv)
         goto end;
     }
 
+    out = bio_open_owner(outfile, outformat, private);
+    if (out == NULL)
+        goto end;
+
+    if (list_curves) {
+        if (list_builtin_curves(out))
+            ret = 0;
+        goto end;
+    }
+
     if (text
-        && !EVP_PKEY_print_params(out, params_key, 0, NULL)) {
+        && EVP_PKEY_print_params(out, params_key, 0, NULL) <= 0) {
         BIO_printf(bio_err, "unable to print params\n");
         goto end;
     }

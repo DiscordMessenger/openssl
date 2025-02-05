@@ -78,9 +78,10 @@ void OPENSSL_cpuid_setup(void) __attribute__ ((constructor));
 #   define OSSL_IMPLEMENT_GETAUXVAL
 #  endif
 # endif
-# if defined(__FreeBSD__)
+# if defined(__FreeBSD__) || defined(__OpenBSD__)
 #  include <sys/param.h>
-#  if __FreeBSD_version >= 1200000
+#  if (defined(__FreeBSD__) && __FreeBSD_version >= 1200000) || \
+    (defined(__OpenBSD__) && OpenBSD >= 202409)
 #   include <sys/auxv.h>
 #   define OSSL_IMPLEMENT_GETAUXVAL
 
@@ -299,7 +300,8 @@ void OPENSSL_cpuid_setup(void)
             if ((sysctlbyname("machdep.cpu.brand_string", uarch, &len, NULL, 0) == 0) &&
                ((strncmp(uarch, "Apple M1", 8) == 0) ||
                 (strncmp(uarch, "Apple M2", 8) == 0) ||
-                (strncmp(uarch, "Apple M3", 8) == 0))) {
+                (strncmp(uarch, "Apple M3", 8) == 0) ||
+                (strncmp(uarch, "Apple M4", 8) == 0))) {
                 OPENSSL_armcap_P |= ARMV8_UNROLL8_EOR3;
                 OPENSSL_armcap_P |= ARMV8_HAVE_SHA3_AND_WORTH_USING;
             }

@@ -7,6 +7,8 @@
  * https://www.openssl.org/source/license.html
  */
 
+#include "internal/e_os.h"
+
 #if defined(__TANDEM) && defined(_SPT_MODEL_)
 # include <spthread.h>
 # include <spt_extensions.h> /* timeval */
@@ -357,6 +359,7 @@ static int state_machine(SSL_CONNECTION *s, int server)
     int ret = -1;
     int ssret;
     SSL *ssl = SSL_CONNECTION_GET_SSL(s);
+    SSL *ussl = SSL_CONNECTION_GET_USER_SSL(s);
 
     if (st->state == MSG_FLOW_ERROR) {
         /* Shouldn't have been called if we're already in the error state */
@@ -399,7 +402,7 @@ static int state_machine(SSL_CONNECTION *s, int server)
         s->server = server;
         if (cb != NULL) {
             if (SSL_IS_FIRST_HANDSHAKE(s) || !SSL_CONNECTION_IS_TLS13(s))
-                cb(ssl, SSL_CB_HANDSHAKE_START, 1);
+                cb(ussl, SSL_CB_HANDSHAKE_START, 1);
         }
 
         /*
@@ -521,9 +524,9 @@ static int state_machine(SSL_CONNECTION *s, int server)
     BUF_MEM_free(buf);
     if (cb != NULL) {
         if (server)
-            cb(ssl, SSL_CB_ACCEPT_EXIT, ret);
+            cb(ussl, SSL_CB_ACCEPT_EXIT, ret);
         else
-            cb(ssl, SSL_CB_CONNECT_EXIT, ret);
+            cb(ussl, SSL_CB_CONNECT_EXIT, ret);
     }
     return ret;
 }
@@ -590,7 +593,7 @@ static SUB_STATE_RETURN read_state_machine(SSL_CONNECTION *s)
     WORK_STATE(*post_process_message) (SSL_CONNECTION *s, WORK_STATE wst);
     size_t (*max_message_size) (SSL_CONNECTION *s);
     void (*cb) (const SSL *ssl, int type, int val) = NULL;
-    SSL *ssl = SSL_CONNECTION_GET_SSL(s);
+    SSL *ssl = SSL_CONNECTION_GET_USER_SSL(s);
 
     cb = get_callback(s);
 
@@ -813,7 +816,7 @@ static SUB_STATE_RETURN write_state_machine(SSL_CONNECTION *s)
     CON_FUNC_RETURN (*confunc) (SSL_CONNECTION *s, WPACKET *pkt);
     int mt;
     WPACKET pkt;
-    SSL *ssl = SSL_CONNECTION_GET_SSL(s);
+    SSL *ssl = SSL_CONNECTION_GET_USER_SSL(s);
 
     cb = get_callback(s);
 
@@ -847,7 +850,6 @@ static SUB_STATE_RETURN write_state_machine(SSL_CONNECTION *s)
 
             case WRITE_TRAN_FINISHED:
                 return SUB_STATE_FINISHED;
-                break;
 
             case WRITE_TRAN_ERROR:
                 check_fatal(s);

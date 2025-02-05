@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2008-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -69,7 +69,8 @@ typedef enum OPTION_choice {
     OPT_DIGEST, OPT_DIGEST_CREATE, OPT_COMPRESS, OPT_UNCOMPRESS,
     OPT_ED_DECRYPT, OPT_ED_ENCRYPT, OPT_DEBUG_DECRYPT, OPT_TEXT,
     OPT_ASCIICRLF, OPT_NOINTERN, OPT_NOVERIFY, OPT_NOCERTS,
-    OPT_NOATTR, OPT_NODETACH, OPT_NOSMIMECAP, OPT_BINARY, OPT_KEYID,
+    OPT_NOATTR, OPT_NODETACH, OPT_NOSMIMECAP, OPT_NO_SIGNING_TIME,
+    OPT_BINARY, OPT_KEYID,
     OPT_NOSIGS, OPT_NO_CONTENT_VERIFY, OPT_NO_ATTR_VERIFY, OPT_INDEF,
     OPT_NOINDEF, OPT_CRLFEOL, OPT_NOOUT, OPT_RR_PRINT,
     OPT_RR_ALL, OPT_RR_FIRST, OPT_RCTFORM, OPT_CERTFILE, OPT_CAFILE,
@@ -133,7 +134,7 @@ const OPTIONS cms_options[] = {
     {"binary", OPT_BINARY, '-',
      "Treat input as binary: do not translate to canonical form"},
     {"crlfeol", OPT_CRLFEOL, '-',
-     "Use CRLF as EOL termination instead of CR only" },
+     "Use CRLF as EOL termination instead of LF only" },
     {"asciicrlf", OPT_ASCIICRLF, '-',
      "Perform CRLF canonicalisation when signing"},
 
@@ -175,7 +176,10 @@ const OPTIONS cms_options[] = {
     OPT_SECTION("Signing"),
     {"md", OPT_MD, 's', "Digest algorithm to use"},
     {"signer", OPT_SIGNER, 's', "Signer certificate input file"},
-    {"certfile", OPT_CERTFILE, '<', "Other certificates file"},
+    {"certfile", OPT_CERTFILE, '<',
+     "Extra signer and intermediate CA certificates to include when signing"},
+    {OPT_MORE_STR, 0, 0,
+     "or to use as preferred signer certs and for chain building when verifying"},
     {"cades", OPT_CADES, '-',
      "Include signingCertificate attribute (CAdES-BES)"},
     {"nodetach", OPT_NODETACH, '-', "Use opaque signing"},
@@ -183,6 +187,8 @@ const OPTIONS cms_options[] = {
      "Don't include signer's certificate when signing"},
     {"noattr", OPT_NOATTR, '-', "Don't include any signed attributes"},
     {"nosmimecap", OPT_NOSMIMECAP, '-', "Omit the SMIMECapabilities attribute"},
+    {"no_signing_time", OPT_NO_SIGNING_TIME, '-',
+     "Omit the signing time attribute"},
     {"receipt_request_all", OPT_RR_ALL, '-',
      "When signing, create a receipt request for all recipients"},
     {"receipt_request_first", OPT_RR_FIRST, '-',
@@ -426,6 +432,9 @@ int cms_main(int argc, char **argv)
         case OPT_NOSMIMECAP:
             flags |= CMS_NOSMIMECAP;
             break;
+        case OPT_NO_SIGNING_TIME:
+            flags |= CMS_NO_SIGNING_TIME;
+            break;
         case OPT_BINARY:
             flags |= CMS_BINARY;
             break;
@@ -502,13 +511,15 @@ int cms_main(int argc, char **argv)
             if (rr_from == NULL
                 && (rr_from = sk_OPENSSL_STRING_new_null()) == NULL)
                 goto end;
-            sk_OPENSSL_STRING_push(rr_from, opt_arg());
+            if (sk_OPENSSL_STRING_push(rr_from, opt_arg()) <= 0)
+                goto end;
             break;
         case OPT_RR_TO:
             if (rr_to == NULL
                 && (rr_to = sk_OPENSSL_STRING_new_null()) == NULL)
                 goto end;
-            sk_OPENSSL_STRING_push(rr_to, opt_arg());
+            if (sk_OPENSSL_STRING_push(rr_to, opt_arg()) <= 0)
+                goto end;
             break;
         case OPT_PRINT:
             noout = print = 1;
@@ -585,13 +596,15 @@ int cms_main(int argc, char **argv)
                 if (sksigners == NULL
                     && (sksigners = sk_OPENSSL_STRING_new_null()) == NULL)
                     goto end;
-                sk_OPENSSL_STRING_push(sksigners, signerfile);
+                if (sk_OPENSSL_STRING_push(sksigners, signerfile) <= 0)
+                    goto end;
                 if (keyfile == NULL)
                     keyfile = signerfile;
                 if (skkeys == NULL
                     && (skkeys = sk_OPENSSL_STRING_new_null()) == NULL)
                     goto end;
-                sk_OPENSSL_STRING_push(skkeys, keyfile);
+                if (sk_OPENSSL_STRING_push(skkeys, keyfile) <= 0)
+                    goto end;
                 keyfile = NULL;
             }
             signerfile = opt_arg();
@@ -609,12 +622,14 @@ int cms_main(int argc, char **argv)
                 if (sksigners == NULL
                     && (sksigners = sk_OPENSSL_STRING_new_null()) == NULL)
                     goto end;
-                sk_OPENSSL_STRING_push(sksigners, signerfile);
+                if (sk_OPENSSL_STRING_push(sksigners, signerfile) <= 0)
+                    goto end;
                 signerfile = NULL;
                 if (skkeys == NULL
                     && (skkeys = sk_OPENSSL_STRING_new_null()) == NULL)
                     goto end;
-                sk_OPENSSL_STRING_push(skkeys, keyfile);
+                if (sk_OPENSSL_STRING_push(skkeys, keyfile) <= 0)
+                    goto end;
             }
             keyfile = opt_arg();
             break;
@@ -668,7 +683,8 @@ int cms_main(int argc, char **argv)
                     key_param->next = nparam;
                 key_param = nparam;
             }
-            sk_OPENSSL_STRING_push(key_param->param, opt_arg());
+            if (sk_OPENSSL_STRING_push(key_param->param, opt_arg()) <= 0)
+                goto end;
             break;
         case OPT_V_CASES:
             if (!opt_verify(o, vpm))
@@ -714,7 +730,6 @@ int cms_main(int argc, char **argv)
     }
 
     /* Remaining args are files to process. */
-    argc = opt_num_rest();
     argv = opt_rest();
 
     if ((rr_allorfirst != -1 || rr_from != NULL) && rr_to == NULL) {
@@ -755,12 +770,14 @@ int cms_main(int argc, char **argv)
             if (sksigners == NULL
                 && (sksigners = sk_OPENSSL_STRING_new_null()) == NULL)
                 goto end;
-            sk_OPENSSL_STRING_push(sksigners, signerfile);
+            if (sk_OPENSSL_STRING_push(sksigners, signerfile) <= 0)
+                goto end;
             if (skkeys == NULL && (skkeys = sk_OPENSSL_STRING_new_null()) == NULL)
                 goto end;
             if (keyfile == NULL)
                 keyfile = signerfile;
-            sk_OPENSSL_STRING_push(skkeys, keyfile);
+            if (sk_OPENSSL_STRING_push(skkeys, keyfile) <= 0)
+                goto end;
         }
         if (sksigners == NULL) {
             BIO_printf(bio_err, "No signer certificate specified\n");
@@ -819,15 +836,8 @@ int cms_main(int argc, char **argv)
     }
 
     if (operation == SMIME_ENCRYPT) {
-        if (!cipher) {
-#ifndef OPENSSL_NO_DES
-            cipher = (EVP_CIPHER *)EVP_des_ede3_cbc();
-#else
-            BIO_printf(bio_err, "No cipher selected\n");
-            goto end;
-#endif
-        }
-
+        if (!cipher)
+            cipher = (EVP_CIPHER *)EVP_aes_256_cbc();
         if (secret_key && !secret_keyid) {
             BIO_printf(bio_err, "No secret key id\n");
             goto end;
@@ -1042,8 +1052,15 @@ int cms_main(int argc, char **argv)
             pwri_tmp = NULL;
         }
         if (!(flags & CMS_STREAM)) {
-            if (!CMS_final(cms, in, NULL, flags))
+            if (!CMS_final(cms, in, NULL, flags)) {
+                if (originator != NULL
+                    && ERR_GET_REASON(ERR_peek_error())
+                    == CMS_R_ERROR_UNSUPPORTED_STATIC_KEY_AGREEMENT) {
+                    BIO_printf(bio_err, "Cannot use originator for encryption\n");
+                    goto end;
+                }
                 goto end;
+            }
         }
     } else if (operation == SMIME_ENCRYPTED_ENCRYPT) {
         cms = CMS_EncryptedData_encrypt_ex(in, cipher, secret_key,
@@ -1294,6 +1311,7 @@ int cms_main(int argc, char **argv)
     X509_free(cert);
     X509_free(recip);
     X509_free(signer);
+    X509_free(originator);
     EVP_PKEY_free(key);
     EVP_CIPHER_free(cipher);
     EVP_CIPHER_free(wrap_cipher);

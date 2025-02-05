@@ -303,10 +303,8 @@ struct x509_object_st {
     /* one of the above types */
     X509_LOOKUP_TYPE type;
     union {
-        char *ptr;
         X509 *x509;
         X509_CRL *crl;
-        EVP_PKEY *pkey;
     } data;
 };
 
@@ -373,7 +371,7 @@ int x509v3_add_len_value_uchar(const char *name, const unsigned char *value,
                                size_t vallen, STACK_OF(CONF_VALUE) **extlist);
 /* Attribute addition functions not checking for duplicate attributes */
 STACK_OF(X509_ATTRIBUTE) *ossl_x509at_add1_attr(STACK_OF(X509_ATTRIBUTE) **x,
-                                                X509_ATTRIBUTE *attr);
+                                                const X509_ATTRIBUTE *attr);
 STACK_OF(X509_ATTRIBUTE) *ossl_x509at_add1_attr_by_OBJ(STACK_OF(X509_ATTRIBUTE) **x,
                                                        const ASN1_OBJECT *obj,
                                                        int type,
@@ -388,4 +386,13 @@ STACK_OF(X509_ATTRIBUTE) *ossl_x509at_add1_attr_by_txt(STACK_OF(X509_ATTRIBUTE) 
                                                        int type,
                                                        const unsigned char *bytes,
                                                        int len);
+                                            
+int ossl_print_attribute_value(BIO *out,
+                               int obj_nid,
+                               const ASN1_TYPE *av,
+                               int indent);
+
+int ossl_serial_number_print(BIO *out, const ASN1_INTEGER *bs, int indent);
+int ossl_bio_print_hex(BIO *out, unsigned char *buf, int len);
+
 #endif  /* OSSL_CRYPTO_X509_H */

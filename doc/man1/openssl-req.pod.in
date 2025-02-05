@@ -9,6 +9,7 @@ openssl-req - PKCS#10 certificate request and certificate generating command
 
 B<openssl> B<req>
 [B<-help>]
+[B<-cipher>]
 [B<-inform> B<DER>|B<PEM>]
 [B<-outform> B<DER>|B<PEM>]
 [B<-in> I<filename>]
@@ -85,6 +86,12 @@ The output format; unspecified by default.
 See L<openssl-format-options(1)> for details.
 
 The data is a PKCS#10 object.
+
+=item B<-cipher> I<name>
+
+Specify the cipher to be used for encrypting the private key.
+If no cipher is specified, AES-256-CBC will be used by default.
+You can override this by providing any valid OpenSSL cipher name.
 
 =item B<-in> I<filename>
 
@@ -392,7 +399,11 @@ Add a specific extension to the certificate (if B<-x509> is in use)
 or certificate request.  The argument must have the form of
 a C<key=value> pair as it would appear in a config file.
 
+If an extension is added using this option that has the same OID as one
+defined in the extension section of the config file, it overrides that one.
+
 This option can be given multiple times.
+Doing so, the same key most not be given more than once.
 
 =item B<-precert>
 
@@ -552,7 +563,7 @@ BMPStrings and UTF8Strings.
 
 This specifies the configuration file section containing a list of
 extensions to add to the certificate request. It can be overridden
-by the B<-reqexts> command line switch. See the
+by the B<-reqexts> (or B<-extensions>) command line switch. See the
 L<x509v3_config(5)> manual page for details of the
 extension section format.
 
@@ -648,6 +659,10 @@ Examine and verify certificate request:
 
  openssl req -in req.pem -text -verify -noout
 
+Specify the cipher to be used for encrypting the private key:
+
+ openssl req -newkey rsa:2048 -keyout privatekey.pem -out request.csr -cipher aes-256-cbc
+
 Create a private key and then generate a certificate request from it:
 
  openssl genrsa -out key.pem 2048
@@ -690,7 +705,7 @@ Sample configuration file prompting for field values:
  attributes             = req_attributes
  req_extensions         = v3_ca
 
- dirstring_type = nobmp
+ dirstring_type = nombstr
 
  [ req_distinguished_name ]
  countryName                    = Country Name (2 letter code)
@@ -819,6 +834,8 @@ L<config(5)>,
 L<x509v3_config(5)>
 
 =head1 HISTORY
+
+The default encryption cipher was changed from 3DES to AES-256 in OpenSSL 3.5.
 
 The B<-section> option was added in OpenSSL 3.0.0.
 

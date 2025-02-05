@@ -243,10 +243,10 @@ static const char *get_sigtype(int nid)
         return "ECDSA";
 
     case NID_ED25519:
-        return "Ed25519";
+        return "ed25519";
 
     case NID_ED448:
-        return "Ed448";
+        return "ed448";
 
     case NID_id_GostR3410_2001:
         return "gost2001";
@@ -292,6 +292,26 @@ static int do_print_sigalgs(BIO *out, SSL *s, int shared)
             SSL_get_sigalgs(s, i, &sign_nid, &hash_nid, NULL, &rsign, &rhash);
         if (i)
             BIO_puts(out, ":");
+        switch (rsign | rhash << 8) {
+        case 0x0809:
+            BIO_puts(out, "rsa_pss_pss_sha256");
+            continue;
+        case 0x080a:
+            BIO_puts(out, "rsa_pss_pss_sha384");
+            continue;
+        case 0x080b:
+            BIO_puts(out, "rsa_pss_pss_sha512");
+            continue;
+        case 0x081a:
+            BIO_puts(out, "ecdsa_brainpoolP256r1_sha256");
+            continue;
+        case 0x081b:
+            BIO_puts(out, "ecdsa_brainpoolP384r1_sha384");
+            continue;
+        case 0x081c:
+            BIO_puts(out, "ecdsa_brainpoolP512r1_sha512");
+            continue;
+        }
         sstr = get_sigtype(sign_nid);
         if (sstr)
             BIO_printf(out, "%s", sstr);
@@ -398,8 +418,13 @@ int ssl_print_tmp_key(BIO *out, SSL *s)
 {
     EVP_PKEY *key;
 
-    if (!SSL_get_peer_tmp_key(s, &key))
+    if (!SSL_get_peer_tmp_key(s, &key)) {
+        if (SSL_version(s) == TLS1_3_VERSION)
+            BIO_printf(out, "Negotiated TLS1.3 group: %s\n",
+                       SSL_group_to_name(s, SSL_get_negotiated_group(s)));
         return 1;
+    }
+
     BIO_puts(out, "Server Temp Key: ");
     switch (EVP_PKEY_get_id(key)) {
     case EVP_PKEY_RSA:
@@ -704,7 +729,7 @@ void msg_cb(int write_p, int version, int content_type, const void *buf,
     (void)BIO_flush(bio);
 }
 
-static STRINT_PAIR tlsext_types[] = {
+static const STRINT_PAIR tlsext_types[] = {
     {"server name", TLSEXT_TYPE_server_name},
     {"max fragment length", TLSEXT_TYPE_max_fragment_length},
     {"client certificate URL", TLSEXT_TYPE_client_certificate_url},
@@ -746,6 +771,7 @@ static STRINT_PAIR tlsext_types[] = {
     {"psk kex modes", TLSEXT_TYPE_psk_kex_modes},
     {"certificate authorities", TLSEXT_TYPE_certificate_authorities},
     {"post handshake auth", TLSEXT_TYPE_post_handshake_auth},
+    {"early_data", TLSEXT_TYPE_early_data},
     {NULL}
 };
 
@@ -1305,12 +1331,9 @@ void print_ssl_summary(SSL *s)
     ssl_print_point_formats(bio_err, s);
     if (SSL_is_server(s))
         ssl_print_groups(bio_err, s, 1);
-    else
-        ssl_print_tmp_key(bio_err, s);
-#else
+#endif
     if (!SSL_is_server(s))
         ssl_print_tmp_key(bio_err, s);
-#endif
 }
 
 int config_ctx(SSL_CONF_CTX *cctx, STACK_OF(OPENSSL_STRING) *str,

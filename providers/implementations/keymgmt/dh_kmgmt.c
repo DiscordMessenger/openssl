@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -388,9 +388,11 @@ static int dh_validate_public(const DH *dh, int checktype)
     if (pub_key == NULL)
         return 0;
 
-    /* The partial test is only valid for named group's with q = (p - 1) / 2 */
-    if (checktype == OSSL_KEYMGMT_VALIDATE_QUICK_CHECK
-        && ossl_dh_is_named_safe_prime_group(dh))
+    /*
+     * The partial test is only valid for named group's with q = (p - 1) / 2
+     * but for that case it is also fully sufficient to check the key validity.
+     */
+    if (ossl_dh_is_named_safe_prime_group(dh))
         return ossl_dh_check_pub_key_partial(dh, pub_key, &res);
 
     return DH_check_pub_key_ex(dh, pub_key);
@@ -529,7 +531,7 @@ static int dh_gen_common_set_params(void *genctx, const OSSL_PARAM params[])
 
     if (gctx == NULL)
         return 0;
-    if (params == NULL)
+    if (ossl_param_is_empty(params))
         return 1;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_TYPE);

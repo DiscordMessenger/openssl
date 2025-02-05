@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2008-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -364,6 +364,7 @@ CMS_SignerInfo *CMS_add1_signer(CMS_ContentInfo *cms,
     si->signer = signer;
     si->mctx = EVP_MD_CTX_new();
     si->pctx = NULL;
+    si->omit_signing_time = 0;
 
     if (si->mctx == NULL) {
         ERR_raise(ERR_LIB_CMS, ERR_R_EVP_LIB);
@@ -455,6 +456,14 @@ CMS_SignerInfo *CMS_add1_signer(CMS_ContentInfo *cms,
                 ERR_raise(ERR_LIB_CMS, ERR_R_CMS_LIB);
                 goto err;
             }
+        }
+        if ((flags & CMS_NO_SIGNING_TIME) != 0) {
+            /*
+             * The signing-time signed attribute (NID_pkcs9_signingTime)
+             * would normally be added later, in CMS_SignerInfo_sign(),
+             * unless we set this flag here
+             */
+            si->omit_signing_time = 1;
         }
         if (flags & CMS_CADES) {
             ESS_SIGNING_CERT *sc = NULL;
@@ -839,7 +848,8 @@ int CMS_SignerInfo_sign(CMS_SignerInfo *si)
                     si->digestAlgorithm->algorithm, 0) <= 0)
         return 0;
 
-    if (CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1) < 0) {
+    if (!si->omit_signing_time
+        && CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1) < 0) {
         if (!cms_add1_signingTime(si, NULL))
             goto err;
     }
@@ -862,7 +872,7 @@ int CMS_SignerInfo_sign(CMS_SignerInfo *si)
 
     alen = ASN1_item_i2d((ASN1_VALUE *)si->signedAttrs, &abuf,
                          ASN1_ITEM_rptr(CMS_Attributes_Sign));
-    if (!abuf)
+    if (alen < 0 || abuf == NULL)
         goto err;
     if (EVP_DigestSignUpdate(mctx, abuf, alen) <= 0)
         goto err;

@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -769,6 +769,7 @@ static int rsa_ossl_public_decrypt(int flen, const unsigned char *from,
                                rsa->_method_mod_n))
         goto err;
 
+    /* For X9.31: Assuming e is odd it does a 12 mod 16 test */
     if ((padding == RSA_X931_PADDING) && ((bn_get_words(ret)[0] & 0xf) != 12))
         if (!BN_sub(ret, rsa->n, ret))
             goto err;

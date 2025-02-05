@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -228,7 +228,8 @@ static void collect_section_name(const CONF_VALUE *v, SECTION_NAMES *names)
 {
     /* A section is a CONF_VALUE with name == NULL */
     if (v->name == NULL)
-        sk_OPENSSL_CSTRING_push(names, v->section);
+        /* A failure to push cannot be handled so we ignore the result. */
+        (void)sk_OPENSSL_CSTRING_push(names, v->section);
 }
 
 static int section_name_cmp(OPENSSL_CSTRING const *a, OPENSSL_CSTRING const *b)
@@ -476,6 +477,9 @@ int OPENSSL_INIT_set_config_appname(OPENSSL_INIT_SETTINGS *settings,
 
 void OPENSSL_INIT_free(OPENSSL_INIT_SETTINGS *settings)
 {
+    if (settings == NULL)
+        return;
+
     free(settings->filename);
     free(settings->appname);
     free(settings);

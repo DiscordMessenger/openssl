@@ -4,6 +4,7 @@
 #
 OPENSSL_ia32cap                         environment
 OPENSSL_s390xcap                        environment
+OPENSSL_riscvcap                        environment
 OPENSSL_MALLOC_FD                       environment
 OPENSSL_MALLOC_FAILURES                 environment
 OPENSSL_instrument_bus                  assembler
@@ -460,6 +461,9 @@ OSSL_CMP_LOG_WARNING                    define
 OSSL_CMP_MSTR_HELPER                    define
 OSSL_CMP_MSTR                           define
 OSSL_CMP_P10CR                          define
+OSSL_CMP_ATAV                           define
+OSSL_CMP_ATAV_free                      define
+OSSL_CMP_ATAVS                          define
 OSSL_CMP_certConf_cb_t                  datatype
 OSSL_CMP_log_cb_t                       datatype
 OSSL_CMP_severity                       datatype
@@ -828,3 +832,17 @@ EVP_PKEY_size                           define
 EVP_PKEY_id                             define
 EVP_PKEY_base_id                        define
 SSL_set_retry_verify                    define
+TS_VERIFY_CTX                           define
+CMAC_CTX                                define
+OPENSSL_load_u16_be                     inline
+OPENSSL_load_u16_le                     inline
+OPENSSL_store_u16_be                    inline
+OPENSSL_store_u16_le                    inline
+OPENSSL_load_u32_be                     inline
+OPENSSL_load_u32_le                     inline
+OPENSSL_store_u32_be                    inline
+OPENSSL_store_u32_le                    inline
+OPENSSL_load_u64_be                     inline
+OPENSSL_load_u64_le                     inline
+OPENSSL_store_u64_be                    inline
+OPENSSL_store_u64_le                    inline

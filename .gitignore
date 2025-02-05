@@ -35,6 +35,7 @@
 /include/openssl/bio.h
 /include/openssl/cmp.h
 /include/openssl/cms.h
+/include/openssl/comp.h
 /include/openssl/conf.h
 /include/openssl/configuration.h
 /include/openssl/crmf.h
@@ -117,6 +118,70 @@ providers/common/include/prov/der_sm2.h
 /test/threadstest_fips
 /test/timing_load_creds
 
+# Demo applications
+/demos/bio/client-arg
+/demos/bio/client-conf
+/demos/bio/saccept
+/demos/bio/sconnect
+/demos/bio/server-arg
+/demos/bio/server-cmod
+/demos/bio/server-conf
+/demos/cipher/aesccm
+/demos/cipher/aesgcm
+/demos/cipher/aeskeywrap
+/demos/cipher/ariacbc
+/demos/cms/cms_comp
+/demos/cms/cms_ddec
+/demos/cms/cms_dec
+/demos/cms/cms_denc
+/demos/cms/cms_enc
+/demos/cms/cms_sign
+/demos/cms/cms_sign2
+/demos/cms/cms_uncomp
+/demos/cms/cms_ver
+/demos/digest/BIO_f_md
+/demos/digest/EVP_MD_demo
+/demos/digest/EVP_MD_stdin
+/demos/digest/EVP_MD_xof
+/demos/encode/ec_encode
+/demos/encode/rsa_encode
+/demos/encrypt/rsa_encrypt
+/demos/guide/quic-client-block
+/demos/guide/quic-client-non-block
+/demos/guide/quic-hq-interop
+/demos/guide/quic-multi-stream
+/demos/guide/tls-client-block
+/demos/guide/tls-client-non-block
+/demos/http3/libnghttp3.pc
+/demos/http3/nghttp3/
+/demos/http3/ossl-nghttp3-demo
+/demos/kdf/argon2
+/demos/kdf/hkdf
+/demos/kdf/pbkdf2
+/demos/kdf/scrypt
+/demos/keyexch/x25519
+/demos/mac/cmac-aes256
+/demos/mac/gmac
+/demos/mac/hmac-sha512
+/demos/mac/poly1305
+/demos/pkey/EVP_PKEY_DSA_keygen
+/demos/pkey/EVP_PKEY_DSA_paramfromdata
+/demos/pkey/EVP_PKEY_DSA_paramgen
+/demos/pkey/EVP_PKEY_DSA_paramvalidate
+/demos/pkey/EVP_PKEY_EC_keygen
+/demos/pkey/EVP_PKEY_RSA_keygen
+/demos/signature/EVP_DSA_Signature_demo
+/demos/signature/EVP_EC_Signature_demo
+/demos/signature/EVP_ED_Signature_demo
+/demos/signature/rsa_pss_direct
+/demos/signature/rsa_pss_hash
+/demos/smime/smdec
+/demos/smime/smenc
+/demos/smime/smsign
+/demos/smime/smsign2
+/demos/smime/smver
+/demos/sslecho/sslecho
+
 # Certain files that get created by tests on the fly
 /test-runs
 /test/buildtest_*
@@ -147,6 +212,9 @@ providers/common/include/prov/der_sm2.h
 *.ld
 /apps/progs.c
 /apps/progs.h
+
+# macOS
+.DS_Store
 
 # Windows (legacy)
 /tmp32

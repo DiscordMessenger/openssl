@@ -403,7 +403,7 @@ SSL *ossl_quic_new(SSL_CTX *ctx)
         goto err;
     }
 
-    qc->tls = ossl_ssl_connection_new_int(ctx, TLS_method());
+    qc->tls = ossl_ssl_connection_new_int(ctx, ssl_base, TLS_method());
     if (qc->tls == NULL || (sc = SSL_CONNECTION_FROM_SSL(qc->tls)) == NULL) {
         QUIC_RAISE_NON_NORMAL_ERROR(NULL, ERR_R_INTERNAL_ERROR, NULL);
         goto err;
@@ -1065,7 +1065,8 @@ int ossl_quic_handle_events(SSL *s)
         return 0;
 
     quic_lock(ctx.qc);
-    ossl_quic_reactor_tick(ossl_quic_channel_get_reactor(ctx.qc->ch), 0);
+    if (ctx.qc->started)
+        ossl_quic_reactor_tick(ossl_quic_channel_get_reactor(ctx.qc->ch), 0);
     quic_unlock(ctx.qc);
     return 1;
 }
@@ -1088,8 +1089,9 @@ int ossl_quic_get_event_timeout(SSL *s, struct timeval *tv, int *is_infinite)
 
     quic_lock(ctx.qc);
 
-    deadline
-        = ossl_quic_reactor_get_tick_deadline(ossl_quic_channel_get_reactor(ctx.qc->ch));
+    if (ctx.qc->started)
+        deadline
+            = ossl_quic_reactor_get_tick_deadline(ossl_quic_channel_get_reactor(ctx.qc->ch));
 
     if (ossl_time_is_infinite(deadline)) {
         *is_infinite = 1;
@@ -2315,9 +2317,13 @@ static int quic_write_blocking(QCTX *ctx, const void *buf, size_t len,
 
     quic_post_write(xso, actual_written > 0, actual_written == len, flags, 1);
 
+    /*
+     * Record however much data we wrote
+     */
+    *written = actual_written;
+
     if (actual_written == len) {
         /* Managed to append everything on the first try. */
-        *written = actual_written;
         return 1;
     }
 
@@ -2341,7 +2347,14 @@ static int quic_write_blocking(QCTX *ctx, const void *buf, size_t len,
             return QUIC_RAISE_NON_NORMAL_ERROR(ctx, args.err, NULL);
     }
 
-    *written = args.total_written;
+    /*
+     * When waiting on extra buffer space to be available, args.total_written
+     * holds the amount of remaining data we requested to write, which will be
+     * something less than the len parameter passed in, however much we wrote
+     * here, add it to the value that we wrote when we initially called
+     * xso_sstream_append
+     */
+    *written += args.total_written;
     return 1;
 }
 
@@ -2507,13 +2520,15 @@ static int quic_validate_for_write(QUIC_XSO *xso, int *err)
         /* FALLTHROUGH */
     case QUIC_SSTREAM_STATE_SEND:
     case QUIC_SSTREAM_STATE_DATA_SENT:
-    case QUIC_SSTREAM_STATE_DATA_RECVD:
         if (ossl_quic_sstream_get_final_size(xso->stream->sstream, NULL)) {
             *err = SSL_R_STREAM_FINISHED;
             return 0;
         }
-
         return 1;
+
+    case QUIC_SSTREAM_STATE_DATA_RECVD:
+        *err = SSL_R_STREAM_FINISHED;
+        return 0;
 
     case QUIC_SSTREAM_STATE_RESET_SENT:
     case QUIC_SSTREAM_STATE_RESET_RECVD:
@@ -2862,6 +2877,9 @@ static size_t ossl_quic_pending_int(const SSL *s, int check_channel)
         return 0;
 
     quic_lock(ctx.qc);
+
+    if (!ctx.qc->started)
+        goto out;
 
     if (ctx.xso == NULL) {
         /* No XSO yet, but there might be a default XSO eligible to be created. */
@@ -4018,6 +4036,22 @@ static int test_poll_event_r(QUIC_XSO *xso)
     int fin = 0;
     size_t avail = 0;
 
+    /*
+     * If a stream has had the fin bit set on the last packet
+     * received, then we need to return a 1 here to raise
+     * SSL_POLL_EVENT_R, so that the stream can have its completion
+     * detected and closed gracefully by an application.
+     * However, if the client reads the data via SSL_read[_ex], that api
+     * provides no stream status, and as a result the stream state moves to
+     * QUIC_RSTREAM_STATE_DATA_READ, and the receive buffer is freed, which
+     * stored the fin state, so its not directly know-able here.  Instead
+     * check for the stream state being QUIC_RSTREAM_STATE_DATA_READ, which
+     * is only set if the last stream frame received had the fin bit set, and
+     * the client read the data.  This catches our poll/read/poll case
+     */
+    if (xso->stream->recv_state == QUIC_RSTREAM_STATE_DATA_READ)
+        return 1;
+
     return ossl_quic_stream_has_recv_buffer(xso->stream)
         && ossl_quic_rstream_available(xso->stream->rstream, &avail, &fin)
         && (avail > 0 || (fin && !xso->retired_fin));
@@ -4096,6 +4130,13 @@ int ossl_quic_conn_poll_events(SSL *ssl, uint64_t events, int do_tick,
 
     quic_lock(ctx.qc);
 
+    if (!ctx.qc->started) {
+        /* We can only try to write on non-started connection. */
+        if ((events & SSL_POLL_EVENT_W) != 0)
+            revents |= SSL_POLL_EVENT_W;
+        goto end;
+    }
+
     if (do_tick)
         ossl_quic_reactor_tick(ossl_quic_channel_get_reactor(ctx.qc->ch), 0);
 
@@ -4145,6 +4186,7 @@ int ossl_quic_conn_poll_events(SSL *ssl, uint64_t events, int do_tick,
             revents |= SSL_POLL_EVENT_OSU;
     }
 
+ end:
     quic_unlock(ctx.qc);
     *p_revents = revents;
     return 1;

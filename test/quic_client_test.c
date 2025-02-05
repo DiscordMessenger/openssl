@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2023-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -133,7 +133,7 @@ static int test_quic_client_ex(int fd_arg)
             if (ret != 1) {
                 if (SSL_get_error(c_ssl, ret) == SSL_ERROR_ZERO_RETURN) {
                     c_shutdown = 1;
-                    TEST_info("Message: \n%s\n", msg2);
+                    TEST_info("Message:\n%s\n", msg2);
                 } else if (!TEST_true(is_want(c_ssl, ret))) {
                     goto err;
                 }

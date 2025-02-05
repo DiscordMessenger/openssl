@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -60,6 +60,7 @@ SKIP: {
     #Test 3: TLS 1.2 client does not send the Reneg extension. Reneg should fail
 
     $proxy->clear();
+    $proxy->cipherc("DEFAULT:\@SECLEVEL=2");
     $proxy->filter(\&reneg_ext_filter);
     $proxy->clientflags("-no_tls1_3");
     $proxy->serverflags("-client_renegotiation");

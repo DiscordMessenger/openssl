@@ -7,6 +7,8 @@
  * https://www.openssl.org/source/license.html
  */
 
+#include "internal/e_os.h"
+
 #include <stdio.h>
 #include <limits.h>
 #include <errno.h>
@@ -19,6 +21,7 @@
 #include <openssl/core_names.h>
 #include "record_local.h"
 #include "internal/packet.h"
+#include "internal/comp.h"
 
 void RECORD_LAYER_init(RECORD_LAYER *rl, SSL_CONNECTION *s)
 {
@@ -587,7 +590,7 @@ int ssl_release_record(SSL_CONNECTION *s, TLS_RECORD *rr, size_t length)
  *   -  SSL3_RT_APPLICATION_DATA (when ssl3_read calls us)
  *   -  0 (during a shutdown, no data has to be returned)
  *
- * If we don't have stored data to work from, read a SSL/TLS record first
+ * If we don't have stored data to work from, read an SSL/TLS record first
  * (possibly multiple records if we still don't have anything to return).
  *
  * This function must handle any surprises the peer may have for us, such as
@@ -1128,7 +1131,7 @@ static void rlayer_msg_callback_wrapper(int write_p, int version,
                                         size_t len, void *cbarg)
 {
     SSL_CONNECTION *s = cbarg;
-    SSL *ssl = SSL_CONNECTION_GET_SSL(s);
+    SSL *ssl = SSL_CONNECTION_GET_USER_SSL(s);
 
     if (s->msg_callback != NULL)
         s->msg_callback(write_p, version, content_type, buf, len, ssl,
@@ -1148,7 +1151,7 @@ static OSSL_FUNC_rlayer_padding_fn rlayer_padding_wrapper;
 static size_t rlayer_padding_wrapper(void *cbarg, int type, size_t len)
 {
     SSL_CONNECTION *s = cbarg;
-    SSL *ssl = SSL_CONNECTION_GET_SSL(s);
+    SSL *ssl = SSL_CONNECTION_GET_USER_SSL(s);
 
     return s->rlayer.record_padding_cb(ssl, type, len,
                                        s->rlayer.record_padding_arg);
@@ -1287,6 +1290,8 @@ int ssl_set_new_record_layer(SSL_CONNECTION *s, int version,
     } else {
         *opts++ = OSSL_PARAM_construct_size_t(OSSL_LIBSSL_RECORD_LAYER_PARAM_BLOCK_PADDING,
                                               &s->rlayer.block_padding);
+        *opts++ = OSSL_PARAM_construct_size_t(OSSL_LIBSSL_RECORD_LAYER_PARAM_HS_PADDING,
+                                              &s->rlayer.hs_padding);
     }
     *opts = OSSL_PARAM_construct_end();
 

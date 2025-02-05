@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2018-2024 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright Siemens AG 2018-2020
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -16,10 +16,10 @@
 #include <openssl/cmperr.h>
 
 /* the context for the CMP mock server */
-typedef struct
-{
+typedef struct {
     X509 *refCert;             /* cert to expect for oldCertID in kur/rr msg */
     X509 *certOut;             /* certificate to be returned in cp/ip/kup msg */
+    EVP_PKEY *keyOut;          /* Private key to be returned for central keygen */
     X509_CRL *crlOut;          /* CRL to be returned in genp for crls */
     STACK_OF(X509) *chainOut;  /* chain of certOut to add to extraCerts field */
     STACK_OF(X509) *caPubsOut; /* used in caPubs of ip and in caCerts of genp */
@@ -87,6 +87,21 @@ static mock_srv_ctx *mock_srv_ctx_new(void)
 
 DEFINE_OSSL_SET1_CERT(refCert)
 DEFINE_OSSL_SET1_CERT(certOut)
+
+int ossl_cmp_mock_srv_set1_keyOut(OSSL_CMP_SRV_CTX *srv_ctx, EVP_PKEY *pkey)
+{
+    mock_srv_ctx *ctx = OSSL_CMP_SRV_CTX_get0_custom_ctx(srv_ctx);
+
+    if (ctx == NULL) {
+        ERR_raise(ERR_LIB_CMP, CMP_R_NULL_ARGUMENT);
+        return 0;
+    }
+    if (pkey != NULL && !EVP_PKEY_up_ref(pkey))
+        return 0;
+    EVP_PKEY_free(ctx->keyOut);
+    ctx->keyOut = pkey;
+    return 1;
+}
 
 int ossl_cmp_mock_srv_set1_crlOut(OSSL_CMP_SRV_CTX *srv_ctx,
                                   X509_CRL *crl)
@@ -274,8 +289,9 @@ static OSSL_CMP_PKISI *process_cert_request(OSSL_CMP_SRV_CTX *srv_ctx,
                                             STACK_OF(X509) **caPubs)
 {
     mock_srv_ctx *ctx = OSSL_CMP_SRV_CTX_get0_custom_ctx(srv_ctx);
-    int bodytype;
+    int bodytype, central_keygen;
     OSSL_CMP_PKISI *si = NULL;
+    EVP_PKEY *keyOut = NULL;
 
     if (ctx == NULL || cert_req == NULL
             || certOut == NULL || chainOut == NULL || caPubs == NULL) {
@@ -359,6 +375,23 @@ static OSSL_CMP_PKISI *process_cert_request(OSSL_CMP_SRV_CTX *srv_ctx,
             && (*certOut = X509_dup(ctx->certOut)) == NULL)
         /* Should return a cert produced from request template, see FR #16054 */
         goto err;
+
+    central_keygen = OSSL_CRMF_MSG_centralkeygen_requested(crm, p10cr);
+    if (central_keygen < 0)
+        goto err;
+    if (central_keygen == 1
+        && (ctx->keyOut == NULL
+            || (keyOut = EVP_PKEY_dup(ctx->keyOut)) == NULL
+            || !OSSL_CMP_CTX_set0_newPkey(OSSL_CMP_SRV_CTX_get0_cmp_ctx(srv_ctx),
+                                          1 /* priv */, keyOut))) {
+        EVP_PKEY_free(keyOut);
+        goto err;
+    }
+    /*
+     * Note that this uses newPkey to return the private key
+     * and does not check whether the 'popo' field is absent.
+     */
+
     if (ctx->chainOut != NULL
             && (*chainOut = X509_chain_up_ref(ctx->chainOut)) == NULL)
         goto err;
@@ -451,7 +484,7 @@ static int check_client_crl(const STACK_OF(OSSL_CMP_CRLSTATUS) *crlStatusList,
 static OSSL_CMP_ITAV *process_genm_itav(mock_srv_ctx *ctx, int req_nid,
                                         const OSSL_CMP_ITAV *req)
 {
-    OSSL_CMP_ITAV *rsp;
+    OSSL_CMP_ITAV *rsp = NULL;
 
     switch (req_nid) {
     case NID_id_it_caCerts:
@@ -488,6 +521,48 @@ static OSSL_CMP_ITAV *process_genm_itav(mock_srv_ctx *ctx, int req_nid,
                 rsp = NULL;
             else
                 rsp = OSSL_CMP_ITAV_new_crls(res == 0 ? NULL : ctx->crlOut);
+        }
+        break;
+    case NID_id_it_certReqTemplate:
+        {
+            OSSL_CRMF_CERTTEMPLATE *reqtemp;
+            OSSL_CMP_ATAVS *keyspec = NULL;
+            X509_ALGOR *keyalg = NULL;
+            OSSL_CMP_ATAV *rsakeylen, *eckeyalg;
+            int ok = 0;
+
+            if ((reqtemp = OSSL_CRMF_CERTTEMPLATE_new()) == NULL)
+                return NULL;
+
+            if (!OSSL_CRMF_CERTTEMPLATE_fill(reqtemp, NULL, NULL,
+                                             X509_get_issuer_name(ctx->refCert),
+                                             NULL))
+                goto crt_err;
+
+            if ((keyalg = X509_ALGOR_new()) == NULL)
+                goto crt_err;
+
+            (void)X509_ALGOR_set0(keyalg, OBJ_nid2obj(NID_X9_62_id_ecPublicKey),
+                                  V_ASN1_UNDEF, NULL); /* cannot fail */
+
+            eckeyalg = OSSL_CMP_ATAV_new_algId(keyalg);
+            rsakeylen = OSSL_CMP_ATAV_new_rsaKeyLen(4096);
+            ok = OSSL_CMP_ATAV_push1(&keyspec, eckeyalg)
+                 && OSSL_CMP_ATAV_push1(&keyspec, rsakeylen);
+            OSSL_CMP_ATAV_free(eckeyalg);
+            OSSL_CMP_ATAV_free(rsakeylen);
+            X509_ALGOR_free(keyalg);
+
+            if (!ok)
+                goto crt_err;
+
+            rsp = OSSL_CMP_ITAV_new0_certReqTemplate(reqtemp, keyspec);
+            return rsp;
+
+        crt_err:
+            OSSL_CRMF_CERTTEMPLATE_free(reqtemp);
+            OSSL_CMP_ATAVS_free(keyspec);
+            return NULL;
         }
         break;
     default:

@@ -45,8 +45,11 @@ Print out a usage message.
 
 =item B<-out> I<filename>
 
-specifies the output filename to write to or standard output by
-default.
+This specifies the output file to write to.
+Standard output is used if this option is not present.
+The output file can be the same as the input,
+which leads to replacing the file contents.
+Note that file I/O is not atomic. The output file is truncated and then written.
 
 =item B<-noout>
 
@@ -139,7 +142,7 @@ The B<-engine> option was deprecated in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

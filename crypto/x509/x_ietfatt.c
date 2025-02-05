@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2021-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -174,6 +174,7 @@ int OSSL_IETF_ATTR_SYNTAX_add1_value(OSSL_IETF_ATTR_SYNTAX *a, int type,
         val->u.string = data;
         break;
     default:
+        OSSL_IETF_ATTR_SYNTAX_VALUE_free(val);
         ERR_raise(ERR_LIB_X509V3, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
     }

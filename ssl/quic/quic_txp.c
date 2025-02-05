@@ -1000,51 +1000,51 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*bypass_cc                       =*/ 1,
         },
     },
-    /* EL 1(HANDSHAKE) */
+    /* EL 1(0RTT) */
     {
-        /* EL 1(HANDSHAKE) - Archetype 0(NORMAL) */
+        /* EL 1(0RTT) - Archetype 0(NORMAL) */
         {
-            /*allow_ack                       =*/ 1,
+            /*allow_ack                       =*/ 0,
             /*allow_ping                      =*/ 1,
-            /*allow_crypto                    =*/ 1,
+            /*allow_crypto                    =*/ 0,
             /*allow_handshake_done            =*/ 0,
             /*allow_path_challenge            =*/ 0,
             /*allow_path_response             =*/ 0,
-            /*allow_new_conn_id               =*/ 0,
-            /*allow_retire_conn_id            =*/ 0,
-            /*allow_stream_rel                =*/ 0,
-            /*allow_conn_fc                   =*/ 0,
+            /*allow_new_conn_id               =*/ 1,
+            /*allow_retire_conn_id            =*/ 1,
+            /*allow_stream_rel                =*/ 1,
+            /*allow_conn_fc                   =*/ 1,
             /*allow_conn_close                =*/ 1,
             /*allow_cfq_other                 =*/ 0,
             /*allow_new_token                 =*/ 0,
-            /*allow_force_ack_eliciting       =*/ 1,
+            /*allow_force_ack_eliciting       =*/ 0,
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 0,
         },
-        /* EL 1(HANDSHAKE) - Archetype 1(PROBE) */
+        /* EL 1(0RTT) - Archetype 1(PROBE) */
         {
-            /*allow_ack                       =*/ 1,
+            /*allow_ack                       =*/ 0,
             /*allow_ping                      =*/ 1,
-            /*allow_crypto                    =*/ 1,
+            /*allow_crypto                    =*/ 0,
             /*allow_handshake_done            =*/ 0,
             /*allow_path_challenge            =*/ 0,
             /*allow_path_response             =*/ 0,
-            /*allow_new_conn_id               =*/ 0,
-            /*allow_retire_conn_id            =*/ 0,
-            /*allow_stream_rel                =*/ 0,
-            /*allow_conn_fc                   =*/ 0,
+            /*allow_new_conn_id               =*/ 1,
+            /*allow_retire_conn_id            =*/ 1,
+            /*allow_stream_rel                =*/ 1,
+            /*allow_conn_fc                   =*/ 1,
             /*allow_conn_close                =*/ 1,
             /*allow_cfq_other                 =*/ 0,
             /*allow_new_token                 =*/ 0,
-            /*allow_force_ack_eliciting       =*/ 1,
+            /*allow_force_ack_eliciting       =*/ 0,
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 1,
             /*bypass_cc                       =*/ 1,
         },
-        /* EL 1(HANDSHAKE) - Archetype 2(ACK_ONLY) */
+        /* EL 1(0RTT) - Archetype 2(ACK_ONLY) */
         {
-            /*allow_ack                       =*/ 1,
+            /*allow_ack                       =*/ 0,
             /*allow_ping                      =*/ 0,
             /*allow_crypto                    =*/ 0,
             /*allow_handshake_done            =*/ 0,
@@ -1057,57 +1057,57 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_conn_close                =*/ 0,
             /*allow_cfq_other                 =*/ 0,
             /*allow_new_token                 =*/ 0,
-            /*allow_force_ack_eliciting       =*/ 1,
+            /*allow_force_ack_eliciting       =*/ 0,
             /*allow_padding                   =*/ 0,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 1,
         },
     },
-    /* EL 2(0RTT) */
+    /* EL (HANDSHAKE) */
     {
-        /* EL 2(0RTT) - Archetype 0(NORMAL) */
+        /* EL 2(HANDSHAKE) - Archetype 0(NORMAL) */
         {
-            /*allow_ack                       =*/ 0,
+            /*allow_ack                       =*/ 1,
             /*allow_ping                      =*/ 1,
-            /*allow_crypto                    =*/ 0,
+            /*allow_crypto                    =*/ 1,
             /*allow_handshake_done            =*/ 0,
             /*allow_path_challenge            =*/ 0,
             /*allow_path_response             =*/ 0,
-            /*allow_new_conn_id               =*/ 1,
-            /*allow_retire_conn_id            =*/ 1,
-            /*allow_stream_rel                =*/ 1,
-            /*allow_conn_fc                   =*/ 1,
+            /*allow_new_conn_id               =*/ 0,
+            /*allow_retire_conn_id            =*/ 0,
+            /*allow_stream_rel                =*/ 0,
+            /*allow_conn_fc                   =*/ 0,
             /*allow_conn_close                =*/ 1,
             /*allow_cfq_other                 =*/ 0,
             /*allow_new_token                 =*/ 0,
-            /*allow_force_ack_eliciting       =*/ 0,
+            /*allow_force_ack_eliciting       =*/ 1,
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 0,
         },
-        /* EL 2(0RTT) - Archetype 1(PROBE) */
+        /* EL 2(HANDSHAKE) - Archetype 1(PROBE) */
         {
-            /*allow_ack                       =*/ 0,
+            /*allow_ack                       =*/ 1,
             /*allow_ping                      =*/ 1,
-            /*allow_crypto                    =*/ 0,
+            /*allow_crypto                    =*/ 1,
             /*allow_handshake_done            =*/ 0,
             /*allow_path_challenge            =*/ 0,
             /*allow_path_response             =*/ 0,
-            /*allow_new_conn_id               =*/ 1,
-            /*allow_retire_conn_id            =*/ 1,
-            /*allow_stream_rel                =*/ 1,
-            /*allow_conn_fc                   =*/ 1,
+            /*allow_new_conn_id               =*/ 0,
+            /*allow_retire_conn_id            =*/ 0,
+            /*allow_stream_rel                =*/ 0,
+            /*allow_conn_fc                   =*/ 0,
             /*allow_conn_close                =*/ 1,
             /*allow_cfq_other                 =*/ 0,
             /*allow_new_token                 =*/ 0,
-            /*allow_force_ack_eliciting       =*/ 0,
+            /*allow_force_ack_eliciting       =*/ 1,
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 1,
             /*bypass_cc                       =*/ 1,
         },
-        /* EL 2(0RTT) - Archetype 2(ACK_ONLY) */
+        /* EL 2(HANDSHAKE) - Archetype 2(ACK_ONLY) */
         {
-            /*allow_ack                       =*/ 0,
+            /*allow_ack                       =*/ 1,
             /*allow_ping                      =*/ 0,
             /*allow_crypto                    =*/ 0,
             /*allow_handshake_done            =*/ 0,
@@ -1120,7 +1120,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_conn_close                =*/ 0,
             /*allow_cfq_other                 =*/ 0,
             /*allow_new_token                 =*/ 0,
-            /*allow_force_ack_eliciting       =*/ 0,
+            /*allow_force_ack_eliciting       =*/ 1,
             /*allow_padding                   =*/ 0,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 1,
@@ -2226,6 +2226,7 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
             rc = 1;
             goto err;
         }
+        chunks[i].shdr.stream_id = id;
     }
 
     for (i = 0;; ++i) {
@@ -2339,7 +2340,6 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
         if (wpkt == NULL)
             goto err; /* alloc error */
 
-        shdr->stream_id = id;
         if (!ossl_assert(ossl_quic_wire_encode_frame_stream_hdr(wpkt, shdr))) {
             /* (Should not be possible.) */
             tx_helper_rollback(h);

@@ -62,7 +62,7 @@ int tls_provider_init(const OSSL_CORE_HANDLE *handle,
 /*
  * Top secret. This algorithm only works if no one knows what this number is.
  * Please don't tell anyone what it is.
- * 
+ *
  * This algorithm is for testing only - don't really use it!
  */
 static const unsigned char private_constant[XOR_KEY_SIZE] = {
@@ -1115,7 +1115,7 @@ static const OSSL_DISPATCH xor_keymgmt_functions[] = {
     OSSL_DISPATCH_END
 };
 
-/* We're re-using most XOR keymgmt functions also for signature operations: */
+/* We're reusing most XOR keymgmt functions also for signature operations: */
 static void *xor_xorhmacsig_gen(void *genctx, OSSL_CALLBACK *osslcb, void *cbarg)
 {
     XORKEY *k = xor_gen(genctx, osslcb, cbarg);
@@ -1821,7 +1821,7 @@ static int key2any_check_selection(int selection, int selection_mask)
          * If the caller asked for the currently checked bit(s), return
          * whether the decoder description says it's supported.
          */
-        if (check1) 
+        if (check1)
             return check2;
     }
 
@@ -2614,7 +2614,7 @@ static int xor_get_aid(unsigned char** oidbuf, const char *tls_name) {
 
    X509_ALGOR_set0(algor, OBJ_txt2obj(tls_name, 0), V_ASN1_UNDEF, NULL);
 
-   aidlen = i2d_X509_ALGOR(algor, oidbuf); 
+   aidlen = i2d_X509_ALGOR(algor, oidbuf);
    X509_ALGOR_free(algor);
    return(aidlen);
 }
@@ -2892,7 +2892,7 @@ int xor_sig_digest_sign_final(void *vpxor_sigctx,
     }
 
     return xor_sig_sign(vpxor_sigctx, sig, siglen, sigsize, digest, (size_t)dlen);
-        
+
 }
 
 int xor_sig_digest_verify_final(void *vpxor_sigctx, const unsigned char *sig,
@@ -3220,12 +3220,12 @@ int tls_provider_init(const OSSL_CORE_HANDLE *handle,
     OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new_from_dispatch(handle, in);
     OSSL_FUNC_core_obj_create_fn *c_obj_create= NULL;
     OSSL_FUNC_core_obj_add_sigid_fn *c_obj_add_sigid= NULL;
-    PROV_XOR_CTX *prov_ctx = xor_newprovctx(libctx);
+    PROV_XOR_CTX *xor_prov_ctx = xor_newprovctx(libctx);
 
-    if (libctx == NULL || prov_ctx == NULL)
-        return 0;
+    if (libctx == NULL || xor_prov_ctx == NULL)
+        goto err;
 
-    *provctx = prov_ctx;
+    *provctx = xor_prov_ctx;
 
     /*
      * Randomise the group_id and code_points we're going to use to ensure we
@@ -3258,23 +3258,29 @@ int tls_provider_init(const OSSL_CORE_HANDLE *handle,
      */
     if (!c_obj_create(handle, XORSIGALG_OID, XORSIGALG_NAME, XORSIGALG_NAME)) {
         ERR_raise(ERR_LIB_USER, XORPROV_R_OBJ_CREATE_ERR);
-        return 0;
+        goto err;
     }
 
     if (!c_obj_add_sigid(handle, XORSIGALG_OID, "", XORSIGALG_OID)) {
         ERR_raise(ERR_LIB_USER, XORPROV_R_OBJ_CREATE_ERR);
-        return 0;
+        goto err;
     }
     if (!c_obj_create(handle, XORSIGALG_HASH_OID, XORSIGALG_HASH_NAME, NULL)) {
         ERR_raise(ERR_LIB_USER, XORPROV_R_OBJ_CREATE_ERR);
-        return 0;
+        goto err;
     }
 
     if (!c_obj_add_sigid(handle, XORSIGALG_HASH_OID, XORSIGALG_HASH, XORSIGALG_HASH_OID)) {
         ERR_raise(ERR_LIB_USER, XORPROV_R_OBJ_CREATE_ERR);
-        return 0;
+        goto err;
     }
 
     *out = tls_prov_dispatch_table;
     return 1;
+
+err:
+    OPENSSL_free(xor_prov_ctx);
+    *provctx = NULL;
+    OSSL_LIB_CTX_free(libctx);
+    return 0;
 }

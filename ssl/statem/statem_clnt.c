@@ -27,6 +27,7 @@
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
 #include "internal/cryptlib.h"
+#include "internal/comp.h"
 
 static MSG_PROCESS_RETURN tls_process_as_hello_retry_request(SSL_CONNECTION *s,
                                                              PACKET *pkt);
@@ -1463,6 +1464,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
     unsigned int context;
     RAW_EXTENSION *extensions = NULL;
     SSL *ssl = SSL_CONNECTION_GET_SSL(s);
+    SSL *ussl = SSL_CONNECTION_GET_USER_SSL(s);
 #ifndef OPENSSL_NO_COMP
     SSL_COMP *comp;
 #endif
@@ -1623,7 +1625,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             int master_key_length;
 
             master_key_length = sizeof(s->session->master_key);
-            if (s->ext.session_secret_cb(ssl, s->session->master_key,
+            if (s->ext.session_secret_cb(ussl, s->session->master_key,
                                          &master_key_length,
                                          NULL, &pref_cipher,
                                          s->ext.session_secret_cb_arg)
@@ -1885,7 +1887,7 @@ static MSG_PROCESS_RETURN tls_process_as_hello_retry_request(SSL_CONNECTION *s,
 
 MSG_PROCESS_RETURN tls_process_server_rpk(SSL_CONNECTION *sc, PACKET *pkt)
 {
-    EVP_PKEY *peer_rpk;
+    EVP_PKEY *peer_rpk = NULL;
 
     if (!tls_process_rpk(sc, pkt, &peer_rpk)) {
         /* SSLfatal() already called */
@@ -2698,7 +2700,7 @@ MSG_PROCESS_RETURN tls_process_new_session_ticket(SSL_CONNECTION *s,
             && (!PACKET_get_net_4(pkt, &age_add)
                 || !PACKET_get_length_prefixed_1(pkt, &nonce)))
         || !PACKET_get_net_2(pkt, &ticklen)
-        || (SSL_CONNECTION_IS_TLS13(s) ? (ticklen == 0 
+        || (SSL_CONNECTION_IS_TLS13(s) ? (ticklen == 0
                                           || PACKET_remaining(pkt) < ticklen)
                                        : PACKET_remaining(pkt) != ticklen)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
@@ -2828,7 +2830,7 @@ MSG_PROCESS_RETURN tls_process_new_session_ticket(SSL_CONNECTION *s,
         static const unsigned char nonce_label[] = "resumption";
 
         /* Ensure cast to size_t is safe */
-        if (!ossl_assert(hashleni >= 0)) {
+        if (!ossl_assert(hashleni > 0)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -2929,7 +2931,7 @@ int tls_process_initial_server_flight(SSL_CONNECTION *s)
      */
     if (s->ext.status_type != TLSEXT_STATUSTYPE_nothing
             && sctx->ext.status_cb != NULL) {
-        int ret = sctx->ext.status_cb(SSL_CONNECTION_GET_SSL(s),
+        int ret = sctx->ext.status_cb(SSL_CONNECTION_GET_USER_SSL(s),
                                       sctx->ext.status_arg);
 
         if (ret == 0) {
@@ -3003,7 +3005,7 @@ static int tls_construct_cke_psk_preamble(SSL_CONNECTION *s, WPACKET *pkt)
 
     memset(identity, 0, sizeof(identity));
 
-    psklen = s->psk_client_callback(SSL_CONNECTION_GET_SSL(s),
+    psklen = s->psk_client_callback(SSL_CONNECTION_GET_USER_SSL(s),
                                     s->session->psk_identity_hint,
                                     identity, sizeof(identity) - 1,
                                     psk, sizeof(psk));
@@ -4054,7 +4056,7 @@ int ssl_do_client_cert_cb(SSL_CONNECTION *s, X509 **px509, EVP_PKEY **ppkey)
     }
 #endif
     if (sctx->client_cert_cb)
-        i = sctx->client_cert_cb(SSL_CONNECTION_GET_SSL(s), px509, ppkey);
+        i = sctx->client_cert_cb(SSL_CONNECTION_GET_USER_SSL(s), px509, ppkey);
     return i;
 }
 

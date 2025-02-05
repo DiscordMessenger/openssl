@@ -54,7 +54,7 @@ X509_NAME_hash() returns a hash value of name I<x> or 0 on failure,
 using the default library context and default property query.
 
 X509_get_subject_name() returns the subject name of certificate I<x>. The
-returned value is an internal pointer which B<MUST NOT> be freed.
+returned value is an internal pointer which B<MUST NOT> be freed. I<x> B<MUST NOT> be NULL.
 
 X509_set_subject_name() sets the issuer name of certificate I<x> to
 I<name>. The I<name> parameter is copied internally and should be freed
@@ -127,9 +127,12 @@ added in OpenSSL 1.0.0 as a macro.
 
 X509_NAME_hash() was turned into a macro and deprecated in OpenSSL 3.0.
 
+X509_ACERT_get0_issuerName(), X509_ACERT_set1_issuerName()
+were added in OpenSSL 3.4.
+
 =head1 COPYRIGHT
 
-Copyright 2015-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2015-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

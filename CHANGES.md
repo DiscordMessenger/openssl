@@ -12,6 +12,7 @@ appropriate release branch.
 OpenSSL Releases
 ----------------
 
+ - [OpenSSL 3.5](#openssl-35)
  - [OpenSSL 3.4](#openssl-34)
  - [OpenSSL 3.3](#openssl-33)
  - [OpenSSL 3.2](#openssl-32)
@@ -24,14 +25,237 @@ OpenSSL Releases
  - [OpenSSL 1.0.0](#openssl-100)
  - [OpenSSL 0.9.x](#openssl-09x)
 
+OpenSSL 3.5
+-----------
+
+### Changes between 3.4 and 3.5 [xx XXX xxxx]
+
+* A new random generation API has been introduced which modifies all
+  of the L<RAND_bytes(3)> family of calls so they are routed through a
+  specific named provider instead of being resolved via the normal DRBG
+  chaining.  In a future OpenSSL release, this will obsolete RAND_METHOD.
+
+  *Dr Paul Dale*
+
+* New inline functions were added to support loads and stores of unsigned
+  16-bit, 32-bit and 64-bit integers in either little-endian or big-endian
+  form, regardless of the host byte-order.  See the `OPENSSL_load_u16_le(3)`
+  manpage for details.
+
+  *Viktor Dukhovni*
+
+* All the BIO_meth_get_*() functions allowing reuse of the internal OpenSSL
+  BIO method implementations were deprecated. The reuse is unsafe due to
+  dependency on the code of the internal methods not changing.
+
+  *Tomáš Mráz*
+
+* Support DEFAULT keyword and '-' prefix in SSL_CTX_set1_groups_list().
+  SSL_CTX_set1_groups_list() now supports the DEFAULT keyword which sets the
+  available groups to the default selection. The '-' prefix allows the calling
+  application to remove a group from the selection.
+
+  *Frederik Wedel-Heinen*
+
+ * Updated the default encryption cipher for the `req`, `cms`, and `smime` applications
+   from `des-ede3-cbc` to `aes-256-cbc`.
+
+   AES-256 provides a stronger 256-bit key encryption than legacy 3DES.
+
+   *Aditya*
+
+ * Enhanced PKCS#7 inner contents verification.
+   In the PKCS7_verify() function, the BIO *indata parameter refers to the
+   signed data if the content is detached from p7. Otherwise, indata should be
+   NULL, and then the signed data must be in p7.
+
+   The previous OpenSSL implementation only supported MIME inner content
+   [RFC 5652, section 5.2].
+
+   The added functionality now enables support for PKCS#7 inner content
+   [RFC 2315, section 7].
+
+   *Małgorzata Olszówka*
+
+ * The `-rawin` option of the `pkeyutl` command is now implied (and thus no
+   longer required) when using `-digest` or when signing or verifying with an
+   Ed25519 or Ed448 key.
+   The `-digest` and `-rawin` option may only be given with `-sign` or `verify`.
+
+   *David von Oheimb*
+
+ * `X509_PURPOSE_add()` has been modified
+   to take `sname` instead of `id` as the primary purpose identifier.
+   For its convenient use, `X509_PURPOSE_get_unused_id()` has been added.
+
+   This work was sponsored by Siemens AG.
+
+   *David von Oheimb*
+
+ * Added support for central key generation in CMP.
+
+   This work was sponsored by Siemens AG.
+
+   *Rajeev Ranjan*
+
+ * Optionally allow the FIPS provider to use the `JITTER` entropy source.
+   Note that using this option will require the resulting FIPS provider
+   to undergo entropy source validation [ESV] by the [CMVP], without this
+   the FIPS provider will not be FIPS compliant.  Enable this using the
+   configuration option `enable-fips-jitter`.
+
+   *Paul Dale*
+
+ * Extended `OPENSSL_ia32cap` support to accommodate additional `CPUID`
+   feature/capability bits in leaf `0x7` (Extended Feature Flags) as well
+   as leaf `0x24` (Converged Vector ISA).
+
+   *Dan Zimmerman, Alina Elizarova*
+
+ * Cipher pipelining support for provided ciphers with new API functions
+   EVP_CIPHER_can_pipeline(), EVP_CipherPipelineEncryptInit(),
+   EVP_CipherPipelineDecryptInit(), EVP_CipherPipelineUpdate(),
+   and EVP_CipherPipelineFinal(). Cipher pipelining support allows application to
+   submit multiple chunks of data in one cipher update call, thereby allowing the
+   provided implementation to take advantage of parallel computing. There are
+   currently no built-in ciphers that support pipelining. This new API replaces
+   the legacy pipeline API [SSL_CTX_set_max_pipelines](https://docs.openssl.org/3.3/man3/SSL_CTX_set_split_send_fragment/) used with Engines.
+
+   *Ramkumar*
+
+ * Add CMS_NO_SIGNING_TIME flag to CMS_sign(), CMS_add1_signer()
+
+   Previously there was no way to create a CMS SignedData signature without a
+   signing time attribute, because CMS_SignerInfo_sign added it unconditionally.
+   However, there is a use case (PAdES signatures [ETSI EN 319 142-1](https://www.etsi.org/deliver/etsi_en/319100_319199/31914201/01.01.01_60/en_31914201v010101p.pdf) )
+   where this attribute is not allowed, so a new flag was added to the CMS API
+   that causes this attribute to be omitted at signing time.
+
+   The new `-no_signing_time` option of the `cms` command enables this flag.
+
+   *Juhász Péter*
+
 OpenSSL 3.4
 -----------
 
-### Changes between 3.3 and 3.4 [xx XXX xxxx]
+### Changes between 3.4.0 and 3.4.1 [xx XXX xxxx]
+
+ * Fixed timing side-channel in ECDSA signature computation.
+
+   There is a timing signal of around 300 nanoseconds when the top word of
+   the inverted ECDSA nonce value is zero. This can happen with significant
+   probability only for some of the supported elliptic curves. In particular
+   the NIST P-521 curve is affected. To be able to measure this leak, the
+   attacker process must either be located in the same physical computer or
+   must have a very fast network connection with low latency.
+
+   ([CVE-2024-13176])
+
+   *Tomáš Mráz*
+
+ * Reverted the behavior change of CMS_get1_certs() and CMS_get1_crls()
+   that happened in the 3.4.0 release. These functions now return NULL
+   again if there are no certs or crls in the CMS object.
+
+   *Tomáš Mráz*
+
+### Changes between 3.3 and 3.4.0 [22 Oct 2024]
+
+ * For the FIPS provider only, replaced the primary DRBG with a continuous
+   health check module.  This also removes the now forbidden DRBG chaining.
+
+   *Paul Dale*
+
+ * Improved base64 BIO correctness and error reporting.
+
+   *Viktor Dukhovni*
+
+ * Added support for directly fetched composite signature algorithms such as
+   RSA-SHA2-256 including new API functions in the EVP_PKEY_sign,
+   EVP_PKEY_verify and EVP_PKEY_verify_recover groups.
+
+   *Richard Levitte*
+
+ * XOF Digest API improvements
+
+   EVP_MD_CTX_get_size() and EVP_MD_CTX_size are macros that were aliased to
+   EVP_MD_get_size which returns a constant value. XOF Digests such as SHAKE
+   have an output size that is not fixed, so calling EVP_MD_get_size() is not
+   sufficent. The existing macros now point to the new function
+   EVP_MD_CTX_get_size_ex() which will retrieve the "size" for a XOF digest,
+   otherwise it falls back to calling EVP_MD_get_size(). Note that the SHAKE
+   implementation did not have a context getter previously, so the "size" will
+   only be able to be retrieved with new providers.
+
+   Also added a EVP_xof() helper.
+
+   *Shane Lontis*
+
+ * Added FIPS indicators to the FIPS provider.
+
+   FIPS 140-3 requires indicators to be used if the FIPS provider allows
+   non-approved algorithms. An algorithm is approved if it passes all
+   required checks such as minimum key size. By default an error will
+   occur if any check fails. For backwards compatibility individual
+   algorithms may override the checks by using either an option in the
+   FIPS configuration OR in code using an algorithm context setter.
+   Overriding the check means that the algorithm is not FIPS compliant.
+   OSSL_INDICATOR_set_callback() can be called to register a callback
+   to log unapproved algorithms. At the end of any algorithm operation
+   the approved status can be queried using an algorithm context getter.
+   FIPS provider configuration options are set using 'openssl fipsinstall'.
+
+   Note that new FIPS 140-3 restrictions have been enforced such as
+   RSA Encryption using PKCS1 padding is no longer approved.
+   Documentation related to the changes can be found on the [fips_module(7)]
+   manual page.
+
+   [fips_module(7)]: https://docs.openssl.org/master/man7/fips_module/#FIPS indicators
+
+   *Shane Lontis, Paul Dale, Po-Hsing Wu and Dimitri John Ledkov*
+
+ * Added support for hardware acceleration for HMAC on S390x architecture.
+
+   *Ingo Franzki*
+
+ * Added debuginfo Makefile target for unix platforms to produce
+   a separate DWARF info file from the corresponding shared libs.
+
+   *Neil Horman*
+
+ * Added support for encapsulation and decapsulation operations in the
+   pkeyutl command.
+
+   *Dmitry Belyavskiy*
+
+ * Added implementation of RFC 9579 (PBMAC1) in PKCS#12.
+
+   *Dmitry Belyavskiy*
+
+ * Add a new random seed source RNG `JITTER` using a statically linked
+   jitterentropy library.
+
+   *Dimitri John Ledkov*
+
+ * Added a feature to retrieve configured TLS signature algorithms,
+   e.g., via the openssl list command.
+
+   *Michael Baentsch*
+
+ * Deprecated TS_VERIFY_CTX_set_* functions and added replacement
+   TS_VERIFY_CTX_set0_* functions with improved semantics.
+
+   *Tobias Erbsland*
+
+ * Redesigned Windows use of OPENSSLDIR/ENGINESDIR/MODULESDIR such that
+   what were formerly build time locations can now be defined at run time
+   with registry keys. See NOTES-WINDOWS.md.
+
+   *Neil Horman*
 
  * Added options `-not_before` and `-not_after` for explicit setting
    start and end dates of certificates created with the `req` and `x509`
-   apps. Added the same options also to `ca` app as alias for
+   commands. Added the same options also to `ca` command as alias for
    `-startdate` and `-enddate` options.
 
    *Stephan Wurm*
@@ -39,19 +263,49 @@ OpenSSL 3.4
  * The X25519 and X448 key exchange implementation in the FIPS provider
    is unapproved and has `fips=no` property.
 
-   * Tomas Mraz*
+   *Tomáš Mráz*
 
- * Use an empty renegotiate extension in TLS client hellos instead of
-   the empty renegotiation SCSV, for all connections with a minimum TLS
+ * SHAKE-128 and SHAKE-256 implementations have no default digest length
+   anymore. That means these algorithms cannot be used with
+   EVP_DigestFinal/_ex() unless the `xoflen` param is set before.
+
+   This change was necessary because the preexisting default lengths were
+   half the size necessary for full collision resistance supported by these
+   algorithms.
+
+   *Tomáš Mráz*
+
+ * Setting `config_diagnostics=1` in the config file will cause errors to
+   be returned from SSL_CTX_new() and SSL_CTX_new_ex() if there is an error
+   in the ssl module configuration.
+
+   *Tomáš Mráz*
+
+ * An empty renegotiate extension will be used in TLS client hellos instead
+   of the empty renegotiation SCSV, for all connections with a minimum TLS
    version > 1.0.
 
    *Tim Perry*
+
+ * Added support for integrity-only cipher suites TLS_SHA256_SHA256 and
+   TLS_SHA384_SHA384 in TLS 1.3, as defined in RFC 9150.
+
+   This work was sponsored by Siemens AG.
+
+   *Rajeev Ranjan*
 
  * Added support for requesting CRL in CMP.
 
    This work was sponsored by Siemens AG.
 
-    *Rajeev Ranjan*
+   *Rajeev Ranjan*
+
+ * Added support for issuedOnBehalfOf, auditIdentity, basicAttConstraints,
+   userNotice, acceptablePrivilegePolicies, acceptableCertPolicies,
+   subjectDirectoryAttributes, associatedInformation, delegatedNameConstraints,
+   holderNameConstraints and targetingInformation X.509v3 extensions.
+
+   *Jonathan M. Wilbur*
 
  * Added Attribute Certificate (RFC 5755) support. Attribute
    Certificates can be created, parsed, modified and printed via the
@@ -66,10 +320,113 @@ OpenSSL 3.4
 
    *Craig Lorentzen*
 
+ * SSL_SESSION_get_time()/SSL_SESSION_set_time()/SSL_CTX_flush_sessions() have
+   been deprecated in favour of their respective ..._ex() replacement functions
+   which are Y2038-safe.
+
+   *Alexander Kanavin*
+
+ * ECC groups may now customize their initialization to save CPU by using
+   precomputed values. This is used by the P-256 implementation.
+
+   *Watson Ladd*
+
 OpenSSL 3.3
 -----------
 
-### Changes between 3.2 and 3.3 [xx XXX xxxx]
+### Changes between 3.3.2 and 3.3.3 [xx XXX xxxx]
+
+ * Fixed possible OOB memory access with invalid low-level GF(2^m) elliptic
+   curve parameters.
+
+   Use of the low-level GF(2^m) elliptic curve APIs with untrusted
+   explicit values for the field polynomial can lead to out-of-bounds memory
+   reads or writes.
+   Applications working with "exotic" explicit binary (GF(2^m)) curve
+   parameters, that make it possible to represent invalid field polynomials
+   with a zero constant term, via the above or similar APIs, may terminate
+   abruptly as a result of reading or writing outside of array bounds. Remote
+   code execution cannot easily be ruled out.
+
+   ([CVE-2024-9143])
+
+   *Viktor Dukhovni*
+
+### Changes between 3.3.1 and 3.3.2 [3 Sep 2024]
+
+ * Fixed possible denial of service in X.509 name checks.
+
+   Applications performing certificate name checks (e.g., TLS clients checking
+   server certificates) may attempt to read an invalid memory address when
+   comparing the expected name with an `otherName` subject alternative name of
+   an X.509 certificate. This may result in an exception that terminates the
+   application program.
+
+   ([CVE-2024-6119])
+
+   *Viktor Dukhovni*
+
+ * Fixed possible buffer overread in SSL_select_next_proto().
+
+   Calling the OpenSSL API function SSL_select_next_proto with an empty
+   supported client protocols buffer may cause a crash or memory contents
+   to be sent to the peer.
+
+   ([CVE-2024-5535])
+
+   *Matt Caswell*
+
+### Changes between 3.3.0 and 3.3.1 [4 Jun 2024]
+
+ * Fixed potential use after free after SSL_free_buffers() is called.
+
+   The SSL_free_buffers function is used to free the internal OpenSSL
+   buffer used when processing an incoming record from the network.
+   The call is only expected to succeed if the buffer is not currently
+   in use. However, two scenarios have been identified where the buffer
+   is freed even when still in use.
+
+   The first scenario occurs where a record header has been received
+   from the network and processed by OpenSSL, but the full record body
+   has not yet arrived. In this case calling SSL_free_buffers will succeed
+   even though a record has only been partially processed and the buffer
+   is still in use.
+
+   The second scenario occurs where a full record containing application
+   data has been received and processed by OpenSSL but the application has
+   only read part of this data. Again a call to SSL_free_buffers will
+   succeed even though the buffer is still in use.
+
+   ([CVE-2024-4741])
+
+   *Matt Caswell*
+
+ * Fixed an issue where checking excessively long DSA keys or parameters may
+   be very slow.
+
+   Applications that use the functions EVP_PKEY_param_check() or
+   EVP_PKEY_public_check() to check a DSA public key or DSA parameters may
+   experience long delays. Where the key or parameters that are being checked
+   have been obtained from an untrusted source this may lead to a Denial of
+   Service.
+
+   To resolve this issue DSA keys larger than OPENSSL_DSA_MAX_MODULUS_BITS
+   will now fail the check immediately with a DSA_R_MODULUS_TOO_LARGE error
+   reason.
+
+   ([CVE-2024-4603])
+
+   *Tomáš Mráz*
+
+ * Improved EC/DSA nonce generation routines to avoid bias and timing
+   side channel leaks.
+
+   Thanks to Florian Sieck from Universität zu Lübeck and George Pantelakis
+   and Hubert Kario from Red Hat for reporting the issues.
+
+   *Tomáš Mráz and Paul Dale*
+
+### Changes between 3.2 and 3.3.0 [9 Apr 2024]
 
  * The `-verify` option to the `openssl crl` and `openssl req` will make
    the program exit with 1 on failure.
@@ -234,7 +591,7 @@ OpenSSL 3.3
 
    *Fisher Yu*
 
- * Enable AES and SHA3 optimisations on Applie Silicon M3-based MacOS systems
+ * Enable AES and SHA3 optimisations on Apple Silicon M3-based MacOS systems
    similar to M1/M2.
 
    *Tom Cosgrove*
@@ -705,14 +1062,14 @@ OpenSSL 3.2
 
    * Lutz Jänicke*
 
- * The `x509`, `ca`, and `req` apps now produce X.509 v3 certificates.
+ * The `x509`, `ca`, and `req` commands now produce X.509 v3 certificates.
    The `-x509v1` option of `req` prefers generation of X.509 v1 certificates.
    `X509_sign()` and `X509_sign_ctx()` make sure that the certificate has
    X.509 version 3 if the certificate information includes X.509 extensions.
 
    *David von Oheimb*
 
- * Fix and extend certificate handling and the apps `x509`, `verify` etc.
+ * Fix and extend certificate handling and the commands `x509`, `verify` etc.
    such as adding a trace facility for debugging certificate chain building.
 
    *David von Oheimb*
@@ -1018,7 +1375,7 @@ OpenSSL 3.1
 
  * Add FIPS provider configuration option to enforce the
    Extended Master Secret (EMS) check during the TLS1_PRF KDF.
-   The option '-ems-check' can optionally be supplied to
+   The option '-ems_check' can optionally be supplied to
    'openssl fipsinstall'.
 
    *Shane Lontis*
@@ -1041,7 +1398,7 @@ OpenSSL 3.1
 
    *Orr Toledano*
 
- * s_client and s_server apps now explicitly say when the TLS version
+ * `s_client` and `s_server` commands now explicitly say when the TLS version
    does not include the renegotiation mechanism. This avoids confusion
    between that scenario versus when the TLS version includes secure
    renegotiation but the peer lacks support for it.
@@ -2092,7 +2449,8 @@ breaking changes, and mappings for the large list of deprecated functions.
 
    *Nicola Tuveri*
 
- * Behavior of the `pkey` app is changed, when using the `-check` or `-pubcheck`
+ * Behavior of the `pkey` command is changed,
+   when using the `-check` or `-pubcheck`
    switches: a validation failure triggers an early exit, returning a failure
    exit status to the parent process.
 
@@ -3008,7 +3366,7 @@ breaking changes, and mappings for the large list of deprecated functions.
    this switch breaks interoperability with correct implementations.
 
  * Fix a use after free bug in d2i_X509_PUBKEY when overwriting a
-   re-used X509_PUBKEY object if the second PUBKEY is malformed.
+   reused X509_PUBKEY object if the second PUBKEY is malformed.
 
    *Bernd Edlinger*
 
@@ -4342,7 +4700,7 @@ OpenSSL 1.1.0
    *Billy Bob Brumley, Nicola Tuveri*
 
  * Fix a use after free bug in d2i_X509_PUBKEY when overwriting a
-   re-used X509_PUBKEY object if the second PUBKEY is malformed.
+   reused X509_PUBKEY object if the second PUBKEY is malformed.
 
    *Bernd Edlinger*
 
@@ -8332,7 +8690,7 @@ OpenSSL 1.0.1
    *Matt Caswell*
 
  * Fix issue where no-ssl3 configuration sets method to NULL. When openssl is
-   built with the no-ssl3 option and a SSL v3 ClientHello is received the ssl
+   built with the no-ssl3 option and an SSL v3 ClientHello is received the ssl
    method would be set to NULL which could later result in a NULL pointer
    dereference. Thanks to Frank Schmirler for reporting this issue.
    ([CVE-2014-3569])
@@ -9397,7 +9755,7 @@ OpenSSL 1.0.0
    *Matt Caswell*
 
  * Fix issue where no-ssl3 configuration sets method to NULL. When openssl is
-   built with the no-ssl3 option and a SSL v3 ClientHello is received the ssl
+   built with the no-ssl3 option and an SSL v3 ClientHello is received the ssl
    method would be set to NULL which could later result in a NULL pointer
    dereference. Thanks to Frank Schmirler for reporting this issue.
    ([CVE-2014-3569])
@@ -15528,7 +15886,7 @@ s-cbc           3624.96k     5258.21k     5530.91k     5624.30k     5628.26k
 
    *stefank@valicert.com via Richard Levitte*
 
- * Add a SSL_SESS_CACHE_NO_INTERNAL_STORE flag to take over half
+ * Add an SSL_SESS_CACHE_NO_INTERNAL_STORE flag to take over half
    the job SSL_SESS_CACHE_NO_INTERNAL_LOOKUP was inconsistently
    doing, define a new flag (SSL_SESS_CACHE_NO_INTERNAL) to be
    the bitwise-OR of the two for use by the majority of applications
@@ -16077,7 +16435,7 @@ s-cbc           3624.96k     5258.21k     5530.91k     5624.30k     5628.26k
 ### Changes between 0.9.6a and 0.9.6b  [9 Jul 2001]
 
  * Change ssleay_rand_bytes (crypto/rand/md_rand.c)
-   to avoid a SSLeay/OpenSSL PRNG weakness pointed out by
+   to avoid an SSLeay/OpenSSL PRNG weakness pointed out by
    Markku-Juhani O. Saarinen <markku-juhani.saarinen@nokia.com>:
    PRNG state recovery was possible based on the output of
    one PRNG request appropriately sized to gain knowledge on
@@ -16462,7 +16820,7 @@ s-cbc           3624.96k     5258.21k     5530.91k     5624.30k     5628.26k
    *Bodo Moeller*
 
  * Store verify_result within SSL_SESSION also for client side to
-   avoid potential security hole. (Re-used sessions on the client side
+   avoid potential security hole. (Reused sessions on the client side
    always resulted in verify_result==X509_V_OK, not using the original
    result of the server certificate verification.)
 
@@ -18678,7 +19036,7 @@ s-cbc           3624.96k     5258.21k     5530.91k     5624.30k     5628.26k
 
  * Bugfix: ssl23_get_client_hello did not work properly when called in
    state SSL23_ST_SR_CLNT_HELLO_B, i.e. when the first 7 bytes of
-   a SSLv2-compatible client hello for SSLv3 or TLSv1 could be read,
+   an SSLv2-compatible client hello for SSLv3 or TLSv1 could be read,
    but a retry condition occurred while trying to read the rest.
 
    *Bodo Moeller*
@@ -20654,6 +21012,12 @@ ndif
 
 <!-- Links -->
 
+[CVE-2024-13176]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-13176
+[CVE-2024-9143]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-9143
+[CVE-2024-6119]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-6119
+[CVE-2024-5535]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-5535
+[CVE-2024-4741]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-4741
+[CVE-2024-4603]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-4603
 [CVE-2024-2511]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-2511
 [CVE-2024-0727]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-0727
 [CVE-2023-6237]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-6237
@@ -20843,3 +21207,5 @@ ndif
 [CVE-2002-0657]: https://www.openssl.org/news/vulnerabilities.html#CVE-2002-0657
 [CVE-2002-0656]: https://www.openssl.org/news/vulnerabilities.html#CVE-2002-0656
 [CVE-2002-0655]: https://www.openssl.org/news/vulnerabilities.html#CVE-2002-0655
+[CMVP]: https://csrc.nist.gov/projects/cryptographic-module-validation-program
+[ESV]: https://csrc.nist.gov/Projects/cryptographic-module-validation-program/entropy-validations

@@ -30,6 +30,7 @@
 #ifndef OPENSSL_NO_DSA
 # include <openssl/dsa.h>
 #endif
+#include "internal/e_os.h"    /* For isatty() */
 
 #define BITS               "default_bits"
 #define KEYFILE            "default_keyfile"
@@ -80,6 +81,7 @@ static int batch = 0;
 
 typedef enum OPTION_choice {
     OPT_COMMON,
+    OPT_CIPHER,
     OPT_INFORM, OPT_OUTFORM, OPT_ENGINE, OPT_KEYGEN_ENGINE, OPT_KEY,
     OPT_PUBKEY, OPT_NEW, OPT_CONFIG, OPT_KEYFORM, OPT_IN, OPT_OUT,
     OPT_KEYOUT, OPT_PASSIN, OPT_PASSOUT, OPT_NEWKEY,
@@ -97,6 +99,7 @@ typedef enum OPTION_choice {
 const OPTIONS req_options[] = {
     OPT_SECTION("General"),
     {"help", OPT_HELP, '-', "Display this summary"},
+    {"cipher", OPT_CIPHER, 's', "Specify the cipher for private key encryption"},
 #ifndef OPENSSL_NO_ENGINE
     {"engine", OPT_ENGINE, 's', "Use engine, possibly a hardware device"},
     {"keygen_engine", OPT_KEYGEN_ENGINE, 's',
@@ -249,7 +252,7 @@ int req_main(int argc, char **argv)
     LHASH_OF(OPENSSL_STRING) *addexts = NULL;
     X509 *new_x509 = NULL, *CAcert = NULL;
     X509_REQ *req = NULL;
-    EVP_CIPHER *cipher = NULL;
+    const EVP_CIPHER *cipher = NULL;
     int ext_copy = EXT_COPY_UNSET;
     BIO *addext_bio = NULL;
     char *extsect = NULL;
@@ -272,9 +275,7 @@ int req_main(int argc, char **argv)
     long newkey_len = -1;
     unsigned long chtype = MBSTRING_ASC, reqflag = 0;
 
-#ifndef OPENSSL_NO_DES
-    cipher = (EVP_CIPHER *)EVP_des_ede3_cbc();
-#endif
+    cipher = (EVP_CIPHER *)EVP_aes_256_cbc();
 
     opt_set_unknown_name("digest");
     prog = opt_init(argc, argv, req_options);
@@ -481,7 +482,7 @@ int req_main(int argc, char **argv)
             }
             i = duplicated(addexts, p);
             if (i == 1)
-                goto opthelp;
+                goto end;
             if (i == -1)
                 BIO_printf(bio_err, "Internal error handling -addext %s\n", p);
             if (i < 0 || BIO_printf(addext_bio, "%s\n", p) < 0)
@@ -489,6 +490,13 @@ int req_main(int argc, char **argv)
             break;
         case OPT_PRECERT:
             newreq = precert = 1;
+            break;
+        case OPT_CIPHER:
+            cipher = EVP_get_cipherbyname(opt_arg());
+            if (cipher == NULL) {
+                BIO_printf(bio_err, "Unknown cipher: %s\n", opt_arg());
+                goto opthelp;
+            }
             break;
         case OPT_MD:
             digest = opt_unknown();
@@ -516,7 +524,7 @@ int req_main(int argc, char **argv)
     if (infile == NULL) {
         if (gen_x509)
             newreq = 1;
-        else if (!newreq)
+        else if (!newreq && isatty(fileno_stdin()))
             BIO_printf(bio_err,
                        "Warning: Will read cert request from stdin since no -in option is given\n");
     }

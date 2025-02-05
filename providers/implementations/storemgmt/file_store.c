@@ -29,6 +29,7 @@
 #include "crypto/ctype.h"        /* ossl_isdigit() */
 #include "prov/implementations.h"
 #include "prov/bio.h"
+#include "prov/providercommon.h"
 #include "file_store_local.h"
 
 DEFINE_STACK_OF(OSSL_STORE_INFO)
@@ -234,7 +235,7 @@ static void *file_open(void *provctx, const char *uri)
 #ifdef _WIN32
         /* Windows "file:" URIs with a drive letter start with a '/' */
         if (p[0] == '/' && p[2] == ':' && p[3] == '/') {
-            char c = tolower(p[1]);
+            char c = tolower((unsigned char)p[1]);
 
             if (c >= 'a' && c <= 'z') {
                 p++;
@@ -320,7 +321,7 @@ static int file_set_ctx_params(void *loaderctx, const OSSL_PARAM params[])
     struct file_ctx_st *ctx = loaderctx;
     const OSSL_PARAM *p;
 
-    if (params == NULL)
+    if (ossl_param_is_empty(params))
         return 1;
 
     if (ctx->type != IS_DIR) {

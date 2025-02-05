@@ -92,7 +92,9 @@ static void kdf_scrypt_reset(void *vctx)
     KDF_SCRYPT *ctx = (KDF_SCRYPT *)vctx;
 
     OPENSSL_free(ctx->salt);
+    ctx->salt = NULL;
     OPENSSL_clear_free(ctx->pass, ctx->pass_len);
+    ctx->pass = NULL;
     kdf_scrypt_init(ctx);
 }
 
@@ -162,7 +164,6 @@ static int set_digest(KDF_SCRYPT *ctx)
     EVP_MD_free(ctx->sha256);
     ctx->sha256 = EVP_MD_fetch(ctx->libctx, "sha256", ctx->propq);
     if (ctx->sha256 == NULL) {
-        OPENSSL_free(ctx);
         ERR_raise(ERR_LIB_PROV, PROV_R_UNABLE_TO_LOAD_SHA256);
         return 0;
     }
@@ -219,7 +220,7 @@ static int kdf_scrypt_set_ctx_params(void *vctx, const OSSL_PARAM params[])
     KDF_SCRYPT *ctx = vctx;
     uint64_t u64_value;
 
-    if (params == NULL)
+    if (ossl_param_is_empty(params))
         return 1;
 
     if ((p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_PASSWORD)) != NULL)

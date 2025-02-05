@@ -15,7 +15,7 @@ use OpenSSL::Test qw/:DEFAULT srctop_file/;
 
 setup("test_req");
 
-plan tests => 109;
+plan tests => 111;
 
 require_ok(srctop_file('test', 'recipes', 'tconversion.pl'));
 
@@ -36,7 +36,7 @@ if (disabled("rsa")) {
 $ENV{MSYS2_ARG_CONV_EXCL} = "/CN=";
 
 # Check for duplicate -addext parameters, and one "working" case.
-my @addext_args = ( "openssl", "req", "-new", "-out", "testreq.pem",
+my @addext_args = ( "openssl", "req", "-new", "-out", "testreq-addexts.pem",
                     "-key",  srctop_file(@certs, "ee-key.pem"),
     "-config", srctop_file("test", "test.cnf"), @req_new );
 my $val = "subjectAltName=DNS:example.com";
@@ -54,6 +54,9 @@ ok(!run(app([@addext_args, "-addext", $val, "-addext", $val3])));
 ok(!run(app([@addext_args, "-addext", $val2, "-addext", $val3])));
 ok(run(app([@addext_args, "-addext", "SXNetID=1:one, 2:two, 3:three"])));
 ok(run(app([@addext_args, "-addext", "subjectAltName=dirName:dirname_sec"])));
+
+ok(run(app([@addext_args, "-addext", "keyUsage=digitalSignature",
+           "-reqexts", "reqexts"]))); # referring to section in test.cnf
 
 # If a CSR is provided with neither of -key or -CA/-CAkey, this should fail.
 ok(!run(app(["openssl", "req", "-x509",
@@ -350,6 +353,56 @@ subtest "generating SM2 certificate requests" => sub {
                     "-vfyopt", "hexdistid:DEADBEEF", "-sm3"])),
            "Verifying signature on SM2 certificate request");
     }
+};
+
+subtest "generating certificate requests with -cipher flag" => sub {
+    plan tests => 6;
+
+    diag("Testing -cipher flag with aes-256-cbc...");
+    ok(run(app(["openssl", "req",
+                "-config", srctop_file("test", "test.cnf"),
+                "-newkey", "rsa:2048",
+                "-keyout", "privatekey-aes256.pem",
+                "-out", "testreq-rsa-cipher.pem",
+                "-utf8",
+                "-cipher", "aes-256-cbc",
+                "-passout", "pass:password"])),
+       "Generating request with -cipher flag (AES-256-CBC)");
+
+    diag("Verifying signature for aes-256-cbc...");
+    ok(run(app(["openssl", "req",
+                "-config", srctop_file("test", "test.cnf"),
+                "-verify", "-in", "testreq-rsa-cipher.pem", "-noout"])),
+       "Verifying signature on request with -cipher (AES-256-CBC)");
+
+    open my $fh, '<', "privatekey-aes256.pem" or BAIL_OUT("Could not open key file: $!");
+    my $first_line = <$fh>;
+    close $fh;
+    ok($first_line =~ /^-----BEGIN ENCRYPTED PRIVATE KEY-----/,
+       "Check that the key file is encrypted (AES-256-CBC)");
+
+    diag("Testing -cipher flag with aes-128-cbc...");
+    ok(run(app(["openssl", "req",
+                "-config", srctop_file("test", "test.cnf"),
+                "-newkey", "rsa:2048",
+                "-keyout", "privatekey-aes128.pem",
+                "-out", "testreq-rsa-cipher-aes128.pem",
+                "-utf8",
+                "-cipher", "aes-128-cbc",
+                "-passout", "pass:password"])),
+       "Generating request with -cipher flag (AES-128-CBC)");
+
+    diag("Verifying signature for aes-128-cbc...");
+    ok(run(app(["openssl", "req",
+                "-config", srctop_file("test", "test.cnf"),
+                "-verify", "-in", "testreq-rsa-cipher-aes128.pem", "-noout"])),
+       "Verifying signature on request with -cipher (AES-128-CBC)");
+
+    open my $fh_aes128, '<', "privatekey-aes128.pem" or BAIL_OUT("Could not open key file: $!");
+    my $first_line_aes128 = <$fh_aes128>;
+    close $fh_aes128;
+    ok($first_line_aes128 =~ /^-----BEGIN ENCRYPTED PRIVATE KEY-----/,
+       "Check that the key file is encrypted (AES-128-CBC)");
 };
 
 my @openssl_args = ("req", "-config", srctop_file("apps", "openssl.cnf"));

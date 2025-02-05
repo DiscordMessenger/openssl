@@ -106,13 +106,21 @@ my ($zero,$rcon,$mask,$in0,$in1,$tmp,$key)=
 	$flavour=~/64/? map("q$_",(0..6)) : map("q$_",(0..3,8..10));
 
 
+#
+# This file generates .s file for 64-bit and 32-bit CPUs.
+# We don't implement .rodata on 32-bit CPUs yet.
+#
+$code.=".rodata\n"	if ($flavour =~ /64/);
 $code.=<<___;
 .align	5
 .Lrcon:
 .long	0x01,0x01,0x01,0x01
 .long	0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d	// rotate-n-splat
 .long	0x1b,0x1b,0x1b,0x1b
+___
+$code.=".previous\n"	if ($flavour =~ /64/);
 
+$code.=<<___;
 .globl	${prefix}_set_encrypt_key
 .type	${prefix}_set_encrypt_key,%function
 .align	5
@@ -139,7 +147,15 @@ $code.=<<___;
 	tst	$bits,#0x3f
 	b.ne	.Lenc_key_abort
 
+___
+$code.=<<___	if ($flavour =~ /64/);
+	adrp	$ptr,.Lrcon
+	add	$ptr,$ptr,:lo12:.Lrcon
+___
+$code.=<<___	if ($flavour =~ /32/);
 	adr	$ptr,.Lrcon
+___
+$code.=<<___;
 	cmp	$bits,#192
 
 	veor	$zero,$zero,$zero
@@ -2493,7 +2509,7 @@ ${prefix}_ctr32_encrypt_blocks_unroll12_eor3:
 	ldp		d8,d9,[sp, #16]
 	ldp		d10,d11,[sp, #32]
 	ldp		d12,d13,[sp, #48]
-	ldp		d15,d16,[sp, #64]
+	ldp		d14,d15,[sp, #64]
 	ldr		x29,[sp],#80
 	ret
 .size	${prefix}_ctr32_encrypt_blocks_unroll12_eor3,.-${prefix}_ctr32_encrypt_blocks_unroll12_eor3
