@@ -30,6 +30,8 @@
 #include <wincrypt.h>
 
 // *** iProgram's Compatibility Stuff ***
+#define IPROGRAMS_COMPAT_STUFF
+#ifdef IPROGRAMS_COMPAT_STUFF
 
 // TODO: Does this stuff run in multiple threads?
 static int s_bIsStuffInitted = 0;
@@ -60,12 +62,13 @@ void InitCertContextStuffIfNeeded()
 	
 	s_pCertOpenSystemStoreA       = (PFNCERTOPENSYSTEMSTOREA)       GetProcAddress(hmod, "CertOpenSystemStoreA");
 	s_pCertCloseStore             = (PFNCERTCLOSESTORE)             GetProcAddress(hmod, "CertCloseStore");
-	s_pCertFindCertificateInStore = (PFNCERTFINDCERTIFICATEINSTORE) GetProcAddress(hmod, "CertFreeCertificateContext");
-	s_pCertFreeCertificateContext = (PFNCERTFREECERTIFICATECONTEXT) GetProcAddress(hmod, "CertFindCertificateInStore");
+	s_pCertFindCertificateInStore = (PFNCERTFINDCERTIFICATEINSTORE) GetProcAddress(hmod, "CertFindCertificateInStore");
+	s_pCertFreeCertificateContext = (PFNCERTFREECERTIFICATECONTEXT) GetProcAddress(hmod, "CertFreeCertificateContext");
 }
 
 HCERTSTORE TEST_CertOpenSystemStoreA(HCRYPTPROV_LEGACY hProv, LPCSTR szSubSystemProtocol)
 {
+	OutputDebugStringA("TEST_CertOpenSystemStoreA\n");
 	InitCertContextStuffIfNeeded();
 	
 	if (!s_pCertOpenSystemStoreA)
@@ -76,6 +79,7 @@ HCERTSTORE TEST_CertOpenSystemStoreA(HCRYPTPROV_LEGACY hProv, LPCSTR szSubSystem
 
 BOOL TEST_CertCloseStore(HCERTSTORE hStore, DWORD dwFlags)
 {
+	OutputDebugStringA("TEST_CertCloseStore\n");
 	InitCertContextStuffIfNeeded();
 	
 	if (!s_pCertCloseStore)
@@ -86,6 +90,7 @@ BOOL TEST_CertCloseStore(HCERTSTORE hStore, DWORD dwFlags)
 
 PCCERT_CONTEXT TEST_CertFindCertificateInStore(HCERTSTORE hs, DWORD dw1, DWORD dw2, DWORD dw3, const void* p1, PCCERT_CONTEXT pccc1)
 {
+	OutputDebugStringA("TEST_CertFindCertificateInStore\n");
 	InitCertContextStuffIfNeeded();
 	
 	if (!s_pCertFindCertificateInStore)
@@ -96,6 +101,7 @@ PCCERT_CONTEXT TEST_CertFindCertificateInStore(HCERTSTORE hs, DWORD dw1, DWORD d
 
 BOOL TEST_CertFreeCertificateContext(PCCERT_CONTEXT pcc)
 {
+	OutputDebugStringA("TEST_CertFreeCertificateContext\n");
 	InitCertContextStuffIfNeeded();
 	
 	if (!s_pCertFreeCertificateContext)
@@ -103,6 +109,15 @@ BOOL TEST_CertFreeCertificateContext(PCCERT_CONTEXT pcc)
 	
 	return s_pCertFreeCertificateContext(pcc);
 }
+
+#else
+
+#define TEST_CertOpenSystemStoreA CertOpenSystemStoreA
+#define TEST_CertCloseStore CertCloseStore
+#define TEST_CertFreeCertificateContext CertFreeCertificateContext
+#define TEST_CertFindCertificateInStore CertFindCertificateInStore
+
+#endif
 
 enum {
     STATE_IDLE,
