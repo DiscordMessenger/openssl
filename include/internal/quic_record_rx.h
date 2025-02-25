@@ -23,7 +23,6 @@
  * QUIC Record Layer - RX
  * ======================
  */
-typedef struct ossl_qrx_st OSSL_QRX;
 
 typedef struct ossl_qrx_args_st {
     OSSL_LIB_CTX   *libctx;
@@ -66,6 +65,11 @@ void ossl_qrx_set_msg_callback(OSSL_QRX *qrx, ossl_msg_cb msg_callback,
                                SSL *msg_callback_ssl);
 void ossl_qrx_set_msg_callback_arg(OSSL_QRX *qrx,
                                    void *msg_callback_arg);
+
+/*
+ * Get the short header connection id len from this qrx
+ */
+size_t ossl_qrx_get_short_hdr_conn_id_len(OSSL_QRX *qrx);
 
 /*
  * Secret Management
@@ -316,6 +320,9 @@ int ossl_qrx_set_late_validation_cb(OSSL_QRX *qrx,
  * establish a new connection.
  */
 void ossl_qrx_inject_urxe(OSSL_QRX *qrx, QUIC_URXE *e);
+void ossl_qrx_inject_pkt(OSSL_QRX *qrx, OSSL_QRX_PKT *pkt);
+int ossl_qrx_validate_initial_packet(OSSL_QRX *qrx, QUIC_URXE *urxe,
+                                     const QUIC_CONN_ID *dcid);
 
 /*
  * Decryption of 1-RTT packets must be explicitly enabled by calling this
