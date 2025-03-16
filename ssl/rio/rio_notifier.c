@@ -13,6 +13,36 @@
 #include "internal/thread_once.h"
 #include "internal/rio_notifier.h"
 
+static int s_inittedws2321 = 0;
+
+typedef SOCKET(WSAAPI* PWSASocketA)(int,int,int,LPWSAPROTOCOL_INFOA,GROUP,DWORD);
+
+static PWSASocketA s_WSASocketA;
+
+void init_if_needed_ws2321()
+{
+	HMODULE hmod;
+	
+	if (!s_inittedws2321)
+	{
+		s_inittedws2321 = 1;
+		hmod = GetModuleHandleA("WS2_32.DLL");
+		
+		if (!hmod)
+			return;
+		
+		s_WSASocketA = (PWSASocketA) GetProcAddress(hmod, "WSASocketA");
+	}
+}
+
+SOCKET M_WSASocketA(int af, int type, int protocol, LPWSAPROTOCOL_INFOA protoinfo, GROUP g, DWORD flags)
+{
+	if (s_WSASocketA)
+		return s_WSASocketA(af, type, protocol, protoinfo, g, flags);
+	
+	return socket(af, type, protocol);
+}
+
 /*
  * Sets a socket as close-on-exec, except that this is a no-op if we are certain
  * we do not need to do this or the OS does not support the concept.
@@ -44,6 +74,12 @@ DEFINE_RUN_ONCE_STATIC(do_wsa_startup)
     WORD versionreq = 0x0202; /* Version 2.2 */
     WSADATA wsadata;
 
+	/* change the version if we don't have WS2 */
+	init_if_needed_ws2321();
+	
+	if (!s_WSASocketA)
+		versionreq = 0x0101; /* Version 1.1 */
+
     if (WSAStartup(versionreq, &wsadata) != 0)
         return 0;
     wsa_started = 1;
@@ -72,7 +108,7 @@ static int create_socket(int domain, int socktype, int protocol)
      * non-inheritable, avoiding race conditions if another thread is about to
      * call CreateProcess.
      */
-    fd = (int)WSASocketA(domain, socktype, protocol, NULL, 0,
+    fd = (int)M_WSASocketA(domain, socktype, protocol, NULL, 0,
                          WSA_FLAG_NO_HANDLE_INHERIT);
     if (fd == INVALID_SOCKET) {
         int err = get_last_socket_error();
