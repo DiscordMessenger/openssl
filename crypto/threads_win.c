@@ -15,6 +15,59 @@
 #endif
 #include <assert.h>
 
+#define NO_INTERLOCKEDOR64
+
+// HACK : MinGW overrides these with __sync_add_and_fetch_4 etc
+#ifdef InterlockedIncrement
+#undef InterlockedIncrement
+#endif
+#ifdef InterlockedDecrement
+#undef InterlockedDecrement
+#endif
+#ifdef InterlockedExchangePointer
+#undef InterlockedExchangePointer
+#endif
+#ifdef InterlockedExchange64
+#undef InterlockedExchange64
+#endif
+
+WINAPI LONG InterlockedIncrement(volatile LONG* val);
+WINAPI LONG InterlockedDecrement(volatile LONG* val);
+//WINAPI PVOID InterlockedExchangePointer(PVOID * addend, PVOID value);
+WINAPI LONG64 InterlockedExchange64(volatile LONG64* addend, LONG64 value);
+
+PVOID InterlockedExchangePointer(volatile PVOID* addend, PVOID value)
+{
+#if __UINTPTR_MAX__ == 0xFFFFFFFFFFFFFFFF
+	return (PVOID) InterlockedExchange64 ((volatile LONG64*) addend, (LONG64) value);
+#else
+	return (PVOID) InterlockedExchange ((volatile LONG*) addend, (LONG) value);
+#endif
+}
+
+LONG M_InterlockedCompareExchange(volatile LONG* Destination, LONG Exchange, LONG Comperand)
+{
+	// TODO: Pre-i586 variant, depending on CPUID and things
+	__asm__ __volatile__(
+		"lock cmpxchg %2, %1"
+		: "+a" (Comperand), "+m" (*Destination)
+		: "r" (Exchange)
+		: "memory"
+	);
+	return Comperand;
+}
+
+LONG M_InterlockedExchangeAdd(volatile LONG* Addend, LONG Value)
+{
+	__asm__ __volatile__(
+		"lock xadd %0, %1"
+		: "+r" (Value), "+m" (*Addend)
+		:
+		: "memory"
+	);
+	return Value;  // Returns the original value of *Addend before addition
+}
+
 /*
  * VC++ 2008 or earlier x86 compilers do not have an inline implementation
  * of InterlockedOr64 for 32bit and will fail to run on Windows XP 32bit.
@@ -202,21 +255,21 @@ void ossl_rcu_lock_free(CRYPTO_RCU_LOCK *lock)
 /* Read side acquisition of the current qp */
 static ossl_inline struct rcu_qp *get_hold_current_qp(CRYPTO_RCU_LOCK *lock)
 {
-    uint32_t qp_idx;
-    uint32_t tmp;
+    uint32_t qp_idx = 0;
+    uint32_t tmp = 0;
     uint64_t tmp64;
 
     /* get the current qp index */
     for (;;) {
         CRYPTO_atomic_load_int((int *)&lock->reader_idx, (int *)&qp_idx,
                                lock->rw_lock);
-        CRYPTO_atomic_add64(&lock->qp_group[qp_idx].users, (uint64_t)1, &tmp64,
+        CRYPTO_atomic_add64((uint64_t*)&lock->qp_group[qp_idx].users, (uint64_t)1, &tmp64,
                             lock->rw_lock);
         CRYPTO_atomic_load_int((int *)&lock->reader_idx, (int *)&tmp,
                                lock->rw_lock);
         if (qp_idx == tmp)
             break;
-        CRYPTO_atomic_add64(&lock->qp_group[qp_idx].users, (uint64_t)-1, &tmp64,
+        CRYPTO_atomic_add64((uint64_t*)&lock->qp_group[qp_idx].users, (uint64_t)-1, &tmp64,
                             lock->rw_lock);
     }
 
@@ -285,7 +338,7 @@ void ossl_rcu_read_unlock(CRYPTO_RCU_LOCK *lock)
     CRYPTO_THREAD_LOCAL *lkey = ossl_lib_ctx_get_rcukey(lock->ctx);
     struct rcu_thr_data *data = CRYPTO_THREAD_get_local(lkey);
     int i;
-    LONG64 ret;
+    LONG64 ret = 0;
 
     assert(data != NULL);
 
@@ -293,7 +346,7 @@ void ossl_rcu_read_unlock(CRYPTO_RCU_LOCK *lock)
         if (data->thread_qps[i].lock == lock) {
             data->thread_qps[i].depth--;
             if (data->thread_qps[i].depth == 0) {
-                CRYPTO_atomic_add64(&data->thread_qps[i].qp->users,
+                CRYPTO_atomic_add64((uint64_t*)&data->thread_qps[i].qp->users,
                                     (uint64_t)-1, (uint64_t *)&ret,
                                     lock->rw_lock);
                 OPENSSL_assert(ret >= 0);
@@ -383,7 +436,7 @@ void ossl_synchronize_rcu(CRYPTO_RCU_LOCK *lock)
 
     /* wait for the reader count to reach zero */
     do {
-        CRYPTO_atomic_load(&qp->users, &count, lock->rw_lock);
+        CRYPTO_atomic_load((uint64_t*)&qp->users, &count, lock->rw_lock);
     } while (count != (uint64_t)0);
 
     retire_qp(lock, qp);
@@ -527,7 +580,7 @@ int CRYPTO_THREAD_run_once(CRYPTO_ONCE *once, void (*init)(void))
         return 1;
 
     do {
-        result = InterlockedCompareExchange(lock, ONCE_ININIT, ONCE_UNINITED);
+        result = M_InterlockedCompareExchange(lock, ONCE_ININIT, ONCE_UNINITED);
         if (result == ONCE_UNINITED) {
             init();
             *lock = ONCE_DONE;
@@ -599,7 +652,7 @@ int CRYPTO_THREAD_compare_id(CRYPTO_THREAD_ID a, CRYPTO_THREAD_ID b)
 
 int CRYPTO_atomic_add(int *val, int amount, int *ret, CRYPTO_RWLOCK *lock)
 {
-    *ret = (int)InterlockedExchangeAdd((LONG volatile *)val, (LONG)amount)
+    *ret = (int)M_InterlockedExchangeAdd((LONG volatile *)val, (LONG)amount)
         + amount;
     return 1;
 }
@@ -720,3 +773,18 @@ int openssl_get_fork_id(void)
     return 0;
 }
 #endif
+
+int crypto_interlockedIncrement(_Atomic int* val)
+{
+	return (int) InterlockedIncrement((volatile LONG*) val);
+}
+
+int crypto_interlockedDecrement(_Atomic int* val)
+{
+	return (int) InterlockedDecrement((volatile LONG*) val);
+}
+
+// have to do this bullcrap because Windows 95 crashes when running the *actual* __gcc_register_frame.
+// add -Wl,--wrap=__gcc_register_frame 
+void __wrap___gcc_register_frame(){}
+void __wrap___gcc_deregister_frame(){}

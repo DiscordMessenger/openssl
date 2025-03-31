@@ -8310,3 +8310,35 @@ int SSL_CTX_get0_server_cert_type(const SSL_CTX *ctx, unsigned char **t, size_t 
     *len = ctx->server_cert_type_len;
     return 1;
 }
+
+// just shoving it here dont mind
+// HACK : MinGW overrides these with __sync_add_and_fetch_4 etc
+#ifdef InterlockedIncrement
+#undef InterlockedIncrement
+#endif
+#ifdef InterlockedDecrement
+#undef InterlockedDecrement
+#endif
+
+// you're a weak definition.  If you already exist somewhere else, sacrificie ourself.
+// The definitions are the exact same anyway.
+#define WEAK //__attribute__((weak)) 
+
+WINAPI LONG InterlockedIncrement(volatile LONG* val);
+WINAPI LONG InterlockedDecrement(volatile LONG* val);
+
+WEAK int crypto_interlockedIncrement(_Atomic int* val)
+{
+	return (int) InterlockedIncrement((volatile LONG*) val);
+}
+
+WEAK int crypto_interlockedDecrement(_Atomic int* val)
+{
+	return (int) InterlockedDecrement((volatile LONG*) val);
+}
+
+// have to do this bullcrap because Windows 95 crashes when running the *actual* __gcc_register_frame.
+// add -Wl,--wrap=__gcc_register_frame  
+void __wrap___gcc_register_frame(){}
+void __wrap___gcc_deregister_frame(){}
+

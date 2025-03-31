@@ -36,9 +36,18 @@ typedef struct {
     _Atomic int val;
 } CRYPTO_REF_COUNT;
 
+#ifdef _WIN32
+extern int crypto_interlockedIncrement(_Atomic int* val);
+extern int crypto_interlockedDecrement(_Atomic int* val);
+#endif
+
 static inline int CRYPTO_UP_REF(CRYPTO_REF_COUNT *refcnt, int *ret)
 {
+#ifdef _WIN32
+	*ret = crypto_interlockedIncrement(&refcnt->val);
+#else
     *ret = atomic_fetch_add_explicit(&refcnt->val, 1, memory_order_relaxed) + 1;
+#endif
     return 1;
 }
 
@@ -54,6 +63,9 @@ static inline int CRYPTO_UP_REF(CRYPTO_REF_COUNT *refcnt, int *ret)
  */
 static inline int CRYPTO_DOWN_REF(CRYPTO_REF_COUNT *refcnt, int *ret)
 {
+#ifdef _WIN32
+	*ret = crypto_interlockedDecrement(&refcnt->val);
+#else
 #   ifdef OSSL_TSAN_BUILD
     /*
      * TSAN requires acq_rel as it indicates a false positive error when
@@ -65,6 +77,7 @@ static inline int CRYPTO_DOWN_REF(CRYPTO_REF_COUNT *refcnt, int *ret)
     if (*ret == 0)
         atomic_thread_fence(memory_order_acquire);
 #   endif
+#endif
     return 1;
 }
 
